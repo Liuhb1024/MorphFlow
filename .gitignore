@@ -1,0 +1,70 @@
+# Dependencies and build output
+node_modules/
+.next/
+out/
+dist/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+
+# Package manager and tooling
+.pnpm-store/
+.turbo/
+.superpowers/
+.eslintcache
+
+# Environment and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+secrets*.json
+secret*.txt
+
+# MorphFlow local/private data
+/.morphflow/
+/morphflow.sqlite*
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+/data/
+/media/
+/exports/
+/logs/
+/temp/
+/tmp/
+/docs/private/
+/reports/credentials/
+
+# Local agent working notes and private product evidence
+/findings.md
+/progress.md
+/task_plan.md
+/docs/superpowers/
+/.codex/
+/.claude/
+
+# Raw user-supplied provider notes contain temporary signed URLs.
+# Keep the original local evidence; commit only sanitized structured docs.
+message.md
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*

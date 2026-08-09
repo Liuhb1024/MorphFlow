@@ -1,0 +1,208 @@
+import type { SecretStore } from "../../secrets/keychain";
+
+export const DMX_CHAT_COMPLETIONS_URL =
+  "https://www.dmxapi.cn/v1/chat/completions";
+
+const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_MAX_RESPONSE_BYTES = 256 * 1_024;
+const MAX_PROMPT_CHARS = 64 * 1_024;
+
+type ChatRole = "system" | "user" | "assistant";
+
+export type DmxChatMessage = Readonly<{
+  role: ChatRole;
+  content: string;
+}>;
+
+export type DmxCompletionRequest = Readonly<{
+  model: string;
+  messages: readonly DmxChatMessage[];
+  maxTokens: number;
+}>;
+
+export type DmxCompletionResult = Readonly<{
+  text: string;
+  model?: string;
+  usage?: Readonly<{
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+  }>;
+}>;
+
+export type DmxApiErrorCode =
+  | "credential_unavailable"
+  | "invalid_request"
+  | "network_error"
+  | "request_timeout"
+  | "provider_http_error"
+  | "response_too_large"
+  | "invalid_provider_response";
+
+export class DmxApiError extends Error {
+  readonly code: DmxApiErrorCode;
+  readonly status: number | undefined;
+
+  constructor(code: DmxApiErrorCode, status?: number) {
+    super(code);
+    this.name = "DmxApiError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
+type FetchLike = typeof fetch;
+
+type DmxApiClientOptions = Readonly<{
+  secretStore: SecretStore;
+  fetchImpl?: FetchLike;
+  timeoutMs?: number;
+  maxResponseBytes?: number;
+}>;
+
+function validateRequest(request: DmxCompletionRequest): void {
+  if (!/^[A-Za-z0-9._-]{1,128}$/.test(request.model)) {
+    throw new DmxApiError("invalid_request");
+  }
+  if (
+    request.messages.length === 0 ||
+    !Number.isSafeInteger(request.maxTokens) ||
+    request.maxTokens < 1 ||
+    request.maxTokens > 8_192
+  ) {
+    throw new DmxApiError("invalid_request");
+  }
+  const promptChars = request.messages.reduce((total, message) => {
+    if (!message.content || message.content.length > MAX_PROMPT_CHARS) {
+      throw new DmxApiError("invalid_request");
+    }
+    return total + message.content.length;
+  }, 0);
+  if (promptChars > MAX_PROMPT_CHARS) {
+    throw new DmxApiError("invalid_request");
+  }
+}
+
+async function readBoundedText(
+  response: Response,
+  maxBytes: number,
+): Promise<string> {
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > maxBytes) {
+        await reader.cancel();
+        throw new DmxApiError("response_too_large");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))).toString(
+    "utf8",
+  );
+}
+
+function optionalFiniteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function parseResponse(raw: string): DmxCompletionResult {
+  try {
+    const body = JSON.parse(raw) as Record<string, unknown>;
+    const choices = body.choices;
+    if (!Array.isArray(choices) || choices.length === 0) {
+      throw new DmxApiError("invalid_provider_response");
+    }
+    const first = choices[0] as Record<string, unknown>;
+    const message = first.message as Record<string, unknown> | undefined;
+    if (!message || typeof message.content !== "string") {
+      throw new DmxApiError("invalid_provider_response");
+    }
+    const usage = body.usage as Record<string, unknown> | undefined;
+    const promptTokens = optionalFiniteNumber(usage?.prompt_tokens);
+    const completionTokens = optionalFiniteNumber(usage?.completion_tokens);
+    const totalTokens = optionalFiniteNumber(usage?.total_tokens);
+    const parsedUsage = usage
+      ? {
+          ...(promptTokens === undefined ? {} : { promptTokens }),
+          ...(completionTokens === undefined ? {} : { completionTokens }),
+          ...(totalTokens === undefined ? {} : { totalTokens }),
+        }
+      : undefined;
+    return {
+      text: message.content,
+      ...(typeof body.model === "string" ? { model: body.model } : {}),
+      ...(parsedUsage ? { usage: parsedUsage } : {}),
+    };
+  } catch (error) {
+    if (error instanceof DmxApiError) throw error;
+    throw new DmxApiError("invalid_provider_response");
+  }
+}
+
+export class DmxApiClient {
+  private readonly secretStore: SecretStore;
+  private readonly fetchImpl: FetchLike;
+  private readonly timeoutMs: number;
+  private readonly maxResponseBytes: number;
+
+  constructor(options: DmxApiClientOptions) {
+    this.secretStore = options.secretStore;
+    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.maxResponseBytes =
+      options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
+  }
+
+  async complete(request: DmxCompletionRequest): Promise<DmxCompletionResult> {
+    validateRequest(request);
+    let credential: string;
+    try {
+      credential = await this.secretStore.get("dmxapi");
+    } catch {
+      throw new DmxApiError("credential_unavailable");
+    }
+
+    const signal = AbortSignal.timeout(this.timeoutMs);
+    let response: Response;
+    try {
+      response = await this.fetchImpl(DMX_CHAT_COMPLETIONS_URL, {
+        method: "POST",
+        headers: {
+          Authorization: credential,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: request.model,
+          messages: request.messages,
+          temperature: 0,
+          max_tokens: request.maxTokens,
+          stream: false,
+        }),
+        redirect: "error",
+        signal,
+      });
+    } catch {
+      if (signal.aborted) throw new DmxApiError("request_timeout");
+      throw new DmxApiError("network_error");
+    } finally {
+      credential = "";
+    }
+
+    const raw = await readBoundedText(response, this.maxResponseBytes);
+    if (!response.ok) {
+      throw new DmxApiError("provider_http_error", response.status);
+    }
+    return parseResponse(raw);
+  }
+}

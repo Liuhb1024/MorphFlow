@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  font-synthesis: none;
+  text-rendering: geometricPrecision;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #f4f4f6;
+  color: #17181c;
+  font-family: Inter, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  outline-offset: 3px;
+}
+
+:focus-visible {
+  outline: 2px solid #5b5bd6;
+}
+
+::selection {
+  background: #dedeff;
+  color: #17181c;
+}
+
+.system-page {
+  display: grid;
+  min-height: 100vh;
+  place-content: center;
+  gap: 1rem;
+  padding: 3rem;
+  background: #f4f4f6;
+}
+
+.system-page > * {
+  max-width: 42rem;
+  margin: 0;
+}
+
+.system-page h1 {
+  font-family: Baskerville, "Songti SC", serif;
+  font-size: clamp(2.4rem, 6vw, 5.5rem);
+  font-weight: 500;
+  line-height: 0.98;
+}
+
+.system-page p:not(.system-page__eyebrow) {
+  color: #98958b;
+  line-height: 1.75;
+}
+
+.system-page__eyebrow {
+  color: #5b5bd6;
+  font-family: "SFMono-Regular", Menlo, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+}
+
+.system-page a {
+  width: fit-content;
+  color: #fff;
+  background: #5b5bd6;
+  padding: 0.75rem 1rem;
+  text-decoration: none;
+}

@@ -1,0 +1,5 @@
+/*
+ * The production workbench styles are intentionally component-scoped in
+ * workbench.module.css. This global entry remains as the stable App Router
+ * import point for future shared tokens and print rules.
+ */
