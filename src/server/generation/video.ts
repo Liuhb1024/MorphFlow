@@ -19,6 +19,21 @@ import { VideoTaskRepository, type VideoTask, type VideoTaskStatus } from "./vid
 type Bindings = Readonly<Record<string, readonly string[]>>;
 type Values = Readonly<Record<string, ParameterValue>>;
 
+export type VideoGenerationIssue = Readonly<{
+  field: string;
+  message: string;
+}>;
+
+export class VideoGenerationValidationError extends Error {
+  readonly issues: readonly VideoGenerationIssue[];
+
+  constructor(issues: readonly VideoGenerationIssue[]) {
+    super("invalid_video_generation_request");
+    this.name = "VideoGenerationValidationError";
+    this.issues = issues;
+  }
+}
+
 function object(value: unknown): Record<string, unknown> | undefined {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
 }
@@ -176,7 +191,13 @@ export async function submitVideoTask(input: { database: Database.Database; data
   if (capability.modelId === "kling-v3" && ["text-multi-shot", "image-multi-shot"].includes(capability.modeId) && values.shotType === "intelligence" && !String(values.prompt ?? "").trim()) throw new Error("invalid_video_generation_request");
   const valueCheck = validateCapabilityDraft(input.capabilityId, values);
   const bindingCheck = validateInputBindings(input.capabilityId, input.bindings);
-  if (!valueCheck.valid || !bindingCheck.valid) throw new Error("invalid_video_generation_request");
+  if (!valueCheck.valid || !bindingCheck.valid) {
+    throw new VideoGenerationValidationError(
+      [...valueCheck.issues, ...bindingCheck.issues]
+        .filter((issue) => issue.severity === "error")
+        .map(({ field, message }) => ({ field, message })),
+    );
+  }
   const projects = new ProjectRepository(input.database); projects.getProject(input.projectId);
   const assets = boundAssets(projects, input.projectId, input.bindings);
   const estimate = estimateCapabilityCost(input.capabilityId, values);

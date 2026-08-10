@@ -88,6 +88,15 @@ export function normalizeCapabilityDraft(
       continue;
     }
 
+    if (
+      rawValue === "" &&
+      (field.kind === "integer" || field.kind === "number") &&
+      !field.required
+    ) {
+      normalized[field.id] = null;
+      continue;
+    }
+
     if (field.kind === "text" && typeof rawValue === "string") {
       normalized[field.id] = rawValue.trim();
       continue;

@@ -27,6 +27,27 @@ async function setup() {
 }
 
 describe("video generation", () => {
+  it("returns field-level validation issues without creating or submitting a paid task", async () => {
+    const data = await setup();
+    const postJson = vi.fn();
+    const capabilityId = "kling-v3:first-last-frame";
+
+    await expect(submitVideoTask({
+      database: data.database,
+      dataRoot: data.root,
+      client: { postJson },
+      projectId: data.project.id,
+      capabilityId,
+      values: { ...createCapabilityDefaults(capabilityId), cfgScale: "" },
+      bindings: { firstFrame: [data.a.id], lastFrame: [data.b.id] },
+    })).rejects.toMatchObject({
+      message: "invalid_video_generation_request",
+      issues: [expect.objectContaining({ field: "cfgScale", message: "提示词相关性必须是数字。" })],
+    });
+    expect(postJson).not.toHaveBeenCalled();
+    data.database.close();
+  });
+
   it.each([
     ["kling-v3:first-last-frame", { firstFrame: "a", lastFrame: "b" }, { taskId: "kling-1" }],
     ["happyhorse-1.1-i2v:image-to-video", { firstFrame: "a" }, { output: [{ content: [{ text: '{"task_id":"happy-1"}' }] }] }],

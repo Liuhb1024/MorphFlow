@@ -1,5 +1,5 @@
 import { getCapability } from "@/model-registry/registry";
-import { submitVideoTask } from "@/server/generation/video";
+import { submitVideoTask, VideoGenerationValidationError } from "@/server/generation/video";
 import { VideoTaskRepository, type VideoTask } from "@/server/generation/video-tasks";
 import { ApiInputError, apiError, localBoundaryError, noStoreJson, readJsonBody } from "@/server/http/api-response";
 import { validateLocalApiRequest } from "@/server/http/local-request";
@@ -44,6 +44,12 @@ export async function POST(request: Request, context: Context) {
     return noStoreJson({ task: dto(task) }, { status: 201 });
   } catch (error) {
     if (error instanceof ApiInputError) return apiError(error.code, error.status);
+    if (error instanceof VideoGenerationValidationError) {
+      return noStoreJson(
+        { error: error.message, issues: error.issues },
+        { status: 400 },
+      );
+    }
     if (error instanceof DmxApiError) return apiError(error.code, error.status ?? 502);
     if (error instanceof Error && (error.message.startsWith("invalid_") || error.message.startsWith("unsupported_") || error.message.startsWith("Unknown capability"))) return apiError(error.message, 400);
     return apiError("video_submission_failed", 502);

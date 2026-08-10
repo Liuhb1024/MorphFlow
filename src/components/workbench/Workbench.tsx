@@ -48,7 +48,7 @@ function uniqueBy<T>(items: T[], key: (item: T) => string) {
 function StageFrame({ asset, label }: { asset: AssetView; label: "A" | "B" }) {
   return (
     <figure className={styles.stageFrame}>
-      <Image alt={asset.alt} fill priority sizes="(max-width: 1000px) 50vw, 35vw" src={asset.src} unoptimized/>
+      <Image alt={asset.alt} fill loading="eager" sizes="(max-width: 1000px) 50vw, 35vw" src={asset.src} unoptimized/>
       <figcaption><span data-frame-label>{label}</span><div><strong>{asset.label}</strong><small>{asset.sourceLabel}</small></div></figcaption>
     </figure>
   );
@@ -229,8 +229,14 @@ function ReviewDialog({ open, capability, values, bindings, projectId, onClose, 
     setSubmitting(true); setMessage("");
     try {
       const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/video-jobs`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ capabilityId: capability.id, values, bindings, confirmed: true }) });
-      const body = await response.json() as { task?: { id: string }; error?: string };
-      if (!response.ok || !body.task) throw new Error(body.error ?? "提交失败");
+      const body = await response.json() as { task?: { id: string }; error?: string; issues?: Array<{ field: string; message: string }> };
+      if (!response.ok || !body.task) {
+        const details = body.issues?.map((issue) => issue.message).join("；");
+        const fallback = body.error === "invalid_video_generation_request"
+          ? "参数或素材不符合当前模型要求，请返回检查标红字段。"
+          : body.error;
+        throw new Error(details || fallback || "提交失败");
+      }
       setResult(body.task); setMessage("任务已真实提交，Provider task ID 已安全保存。");
     } catch (error) { setMessage(error instanceof Error ? error.message : "提交失败"); }
     finally { setSubmitting(false); }

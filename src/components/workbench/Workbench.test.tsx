@@ -35,6 +35,8 @@ describe("generation workspace", () => {
     expect(screen.getByText("A", { selector: "[data-frame-label]" })).toBeVisible();
     expect(screen.getByText("B", { selector: "[data-frame-label]" })).toBeVisible();
     expect(screen.getByText("文档支持 · 未实测")).toBeVisible();
+    expect(screen.getByAltText("A.png")).toHaveAttribute("loading", "eager");
+    expect(screen.getByAltText("B.png")).toHaveAttribute("loading", "eager");
 
     const providers = within(screen.getByLabelText("Provider")).getAllByRole("option");
     expect(providers.length).toBeGreaterThan(2);
@@ -67,7 +69,7 @@ describe("generation workspace", () => {
     await user.selectOptions(screen.getByLabelText("输出分辨率"), "1080p");
 
     expect(screen.getByRole("button", { name: /检查并生成/ })).toBeDisabled();
-    expect(screen.getAllByText(/1080p 与 10 秒暂不兼容/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/1080p 不支持 10 秒时长/).length).toBeGreaterThan(0);
     expect(screen.getByLabelText("视频时长")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText("输出分辨率")).toHaveAttribute("aria-invalid", "true");
   });
@@ -104,5 +106,34 @@ describe("generation workspace", () => {
     expect(screen.getByText("正在向视频模型提交任务…")).toBeVisible();
     expect(screen.getByRole("button", { name: "关闭复核" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "返回调整" })).toBeDisabled();
+  });
+
+  it("blocks review when a required advanced number is cleared", async () => {
+    const user = userEvent.setup();
+    render(<WorkbenchShell view={testView()} />);
+
+    await user.selectOptions(screen.getByLabelText("Provider"), "kling");
+    await user.selectOptions(screen.getByLabelText("Capability 模式"), "first-last-frame");
+    await user.clear(screen.getByLabelText("提示词相关性"));
+
+    expect(screen.getByLabelText("提示词相关性")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getAllByText("提示词相关性必须是数字。").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /检查并生成/ })).toBeDisabled();
+  });
+
+  it("shows the server field message instead of a generic submission code", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      error: "invalid_video_generation_request",
+      issues: [{ field: "cfgScale", message: "提示词相关性必须是数字。" }],
+    }), { status: 400, headers: { "Content-Type": "application/json" } })));
+    const user = userEvent.setup();
+    render(<WorkbenchShell view={testView()} />);
+
+    await user.type(screen.getByLabelText("镜头提示词"), "保持主体连续并平稳转场");
+    await user.click(screen.getByRole("button", { name: /检查并生成/ }));
+    await user.click(screen.getByRole("button", { name: "确认费用并提交" }));
+
+    expect(await screen.findByText("提示词相关性必须是数字。")).toBeVisible();
+    expect(screen.queryByText("invalid_video_generation_request")).not.toBeInTheDocument();
   });
 });

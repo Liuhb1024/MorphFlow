@@ -5,6 +5,7 @@ import {
   estimateCapabilityCost,
   getCapability,
   listCapabilities,
+  normalizeCapabilityDraft,
   validateInputBindings,
   validateCapabilityDraft,
 } from "./registry";
@@ -300,6 +301,24 @@ describe("model registry", () => {
           code: "unknown_field",
         }),
       ]),
+    );
+  });
+
+  it("normalizes a cleared optional number to null without hiding invalid required numbers", () => {
+    const optional = normalizeCapabilityDraft("happyhorse-1.1-i2v:image-to-video", {
+      ...createCapabilityDefaults("happyhorse-1.1-i2v:image-to-video"),
+      seed: "",
+    });
+    const required = normalizeCapabilityDraft("kling-v3:first-last-frame", {
+      ...createCapabilityDefaults("kling-v3:first-last-frame"),
+      cfgScale: "",
+    });
+
+    expect(optional.seed).toBeNull();
+    expect(validateCapabilityDraft("happyhorse-1.1-i2v:image-to-video", optional).valid).toBe(true);
+    expect(required.cfgScale).toBe("");
+    expect(validateCapabilityDraft("kling-v3:first-last-frame", required).issues).toContainEqual(
+      expect.objectContaining({ field: "cfgScale", code: "invalid_type" }),
     );
   });
 
