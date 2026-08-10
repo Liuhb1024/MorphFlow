@@ -21,9 +21,12 @@ describe("generateDirectorAdvice", () => {
     const project = new ProjectRepository(database).createProject({ name: "director" });
     const image = await storeLocalAsset({ database, dataRoot: root, projectId: project.id, kind: "first_frame", originalFilename: "a.png", declaredMime: "image/png", stream: bytes() });
     const postJson = vi.fn().mockResolvedValue({ choices: [{ message: { content: "缓慢推进，保持主体连续。" } }] });
-    const advice = await generateDirectorAdvice({ database, dataRoot: root, client: { postJson }, projectId: project.id, assetIds: [image.id], prompt: "做一个能量转场" });
+    const advice = await generateDirectorAdvice({ database, dataRoot: root, client: { postJson }, projectId: project.id, assetIds: [image.id], prompt: "做一个能量转场", capabilityId: "paiwo-v5.6-itv:image-to-video", duration: 8, audio: false });
     expect(advice).toBe("缓慢推进，保持主体连续。");
     expect(postJson).toHaveBeenCalledWith("/v1/chat/completions", expect.objectContaining({ model: "gemini-3.6-flash" }), expect.objectContaining({ authorization: "bare" }));
+    const payload = postJson.mock.calls[0]?.[1] as { messages: Array<{ content: Array<{ text?: string }> }> };
+    expect(payload.messages[0]?.content[0]?.text).toContain("8 秒");
+    expect(payload.messages[0]?.content[0]?.text).toContain("不要添加声音");
     database.close();
   });
 });

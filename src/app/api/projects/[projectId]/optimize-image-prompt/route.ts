@@ -15,10 +15,18 @@ export async function POST(request: Request, context: { params: Promise<{ projec
   let handle;
   try {
     const body = await readJsonBody(request, 32 * 1_024) as Record<string, unknown>;
-    if (!body || typeof body !== "object" || body.confirmed !== true || typeof body.prompt !== "string") throw new ApiInputError("invalid_prompt_optimization_request");
+    if (!body || typeof body !== "object" || body.confirmed !== true || typeof body.prompt !== "string" || !Array.isArray(body.referenceAssetIds) || typeof body.aspectRatio !== "string") throw new ApiInputError("invalid_prompt_optimization_request");
     const { projectId } = await context.params;
     handle = openLocalDatabase(); new ProjectRepository(handle.database).getProject(projectId);
-    const prompt = await optimizeImagePrompt(new DmxApiClient({ secretStore: new MacOSKeychain() }), body.prompt);
+    const prompt = await optimizeImagePrompt({
+      database: handle.database,
+      dataRoot: handle.paths.root,
+      client: new DmxApiClient({ secretStore: new MacOSKeychain() }),
+      projectId,
+      referenceAssetIds: body.referenceAssetIds.filter((id): id is string => typeof id === "string"),
+      draft: body.prompt,
+      aspectRatio: body.aspectRatio,
+    });
     return noStoreJson({ prompt });
   } catch (error) {
     if (error instanceof ApiInputError) return apiError(error.code, error.status);

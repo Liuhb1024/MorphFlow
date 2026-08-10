@@ -14,10 +14,10 @@ export async function POST(request: Request, context: { params: Promise<{ projec
   let handle;
   try {
     const body = await readJsonBody(request, 64 * 1_024) as Record<string, unknown>;
-    if (!body || typeof body !== "object" || !Array.isArray(body.assetIds) || body.confirmed !== true) throw new ApiInputError("invalid_director_request");
+    if (!body || typeof body !== "object" || !Array.isArray(body.assetIds) || body.confirmed !== true || typeof body.capabilityId !== "string" || typeof body.duration !== "number" || typeof body.audio !== "boolean") throw new ApiInputError("invalid_director_request");
     const { projectId } = await context.params;
     handle = openLocalDatabase();
-    const advice = await generateDirectorAdvice({ database: handle.database, dataRoot: handle.paths.root, client: new DmxApiClient({ secretStore: new MacOSKeychain() }), projectId, assetIds: body.assetIds.filter((id): id is string => typeof id === "string"), prompt: typeof body.prompt === "string" ? body.prompt : "" });
+    const advice = await generateDirectorAdvice({ database: handle.database, dataRoot: handle.paths.root, client: new DmxApiClient({ secretStore: new MacOSKeychain() }), projectId, assetIds: body.assetIds.filter((id): id is string => typeof id === "string"), prompt: typeof body.prompt === "string" ? body.prompt : "", capabilityId: body.capabilityId, duration: body.duration, audio: body.audio });
     return noStoreJson({ advice });
   } catch (error) {
     if (error instanceof ApiInputError) return apiError(error.code, error.status);

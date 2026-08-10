@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { openMorphFlowDatabase } from "../db/connection";
 import { storeLocalAsset } from "../media/local-store";
 import { ProjectRepository } from "../projects/repository";
-import { generateEditedImage } from "./image";
+import { generateEditedImage, validImageSize } from "./image";
 
 const dirs: string[] = [];
 const png = Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,1,2,3,4]);
@@ -16,6 +16,15 @@ async function* bytes() { yield Uint8Array.from(png); }
 afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 
 describe("generateEditedImage", () => {
+  it("accepts aligned arbitrary GPT Image 2 sizes and rejects unsupported geometry", () => {
+    expect(validImageSize("1152x2048")).toBe(true);
+    expect(validImageSize("2048x1536")).toBe(true);
+    expect(validImageSize("auto")).toBe(true);
+    expect(validImageSize("1000x1000")).toBe(false);
+    expect(validImageSize("3840x1024")).toBe(false);
+    expect(validImageSize("4096x2048")).toBe(false);
+  });
+
   it("sends real local references and stores the generated result as a new asset", async () => {
     const root = mkdtempSync(join(tmpdir(), "morphflow-image-generation-"));
     dirs.push(root);

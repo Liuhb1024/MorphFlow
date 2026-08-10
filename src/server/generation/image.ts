@@ -11,9 +11,22 @@ const OUTPUT_MIME = {
   jpeg: "image/jpeg",
   webp: "image/webp",
 } as const;
-const SIZES = new Set(["auto", "1024x1024", "1536x1024", "1024x1536", "2048x2048", "2048x1152", "3840x2160", "2160x3840"]);
 const QUALITIES = new Set(["low", "medium", "high", "auto"]);
 const BACKGROUNDS = new Set(["auto", "opaque"]);
+
+export function validImageSize(size: string): boolean {
+  if (size === "auto") return true;
+  const match = /^(\d{2,4})x(\d{2,4})$/.exec(size);
+  if (!match) return false;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  const pixels = width * height;
+  const ratio = Math.max(width / height, height / width);
+  return width <= 3_840 && height <= 3_840
+    && width % 16 === 0 && height % 16 === 0
+    && ratio <= 3
+    && pixels >= 655_360 && pixels <= 8_294_400;
+}
 
 export type GenerateImageInput = Readonly<{
   database: Database.Database;
@@ -79,7 +92,7 @@ export async function generateEditedImage(input: GenerateImageInput): Promise<As
   const repository = new ProjectRepository(input.database);
   repository.getProject(input.projectId);
   const prompt = input.prompt.normalize("NFC").trim();
-  if (!prompt || prompt.length > 32_000 || input.referenceAssetIds.length < 1 || input.referenceAssetIds.length > 10 || !SIZES.has(input.size) || !QUALITIES.has(input.quality) || !BACKGROUNDS.has(input.background)) {
+  if (!prompt || prompt.length > 32_000 || input.referenceAssetIds.length < 1 || input.referenceAssetIds.length > 10 || !validImageSize(input.size) || !QUALITIES.has(input.quality) || !BACKGROUNDS.has(input.background)) {
     throw new Error("invalid_image_generation_request");
   }
   const references = input.referenceAssetIds.map((id) => repository.getAsset(id));
