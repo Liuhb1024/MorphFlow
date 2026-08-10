@@ -17,7 +17,7 @@ MorphFlow 是一个本地优先、个人使用的 AI 视频转场工作台。它
 
 - Next.js 16 + React 19 的统一浅色创作工作台与七个主页面。
 - Gemini、GPT Image 2、Kling、Vidu、MiniMax H3、HappyHorse、Paiwo 共 18 个 capability，保留各自输入、参数、约束和价格证据。
-- 真实本地项目、镜头和素材 SQLite 仓储；上传内容保存到仓库外的数据目录。
+- 真实本地项目、镜头和素材 SQLite 仓储；项目支持搜索、重命名和带二次确认的完整删除，上传内容保存到仓库外的数据目录。
 - 上传文件的 MIME、扩展名、魔数、大小、路径和符号链接安全校验。
 - 设置页通过 macOS Keychain 保存/删除 DMXAPI Key，完整密钥永不回显。
 - 只读健康检查：Node.js、SQLite、FFmpeg 和 ffprobe。

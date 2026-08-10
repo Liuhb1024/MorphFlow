@@ -110,3 +110,27 @@ test("reports the real local Node and FFmpeg health without exposing a key", asy
   expect(typeof health.credential.configured).toBe("boolean");
   expect(JSON.stringify(health)).not.toMatch(/authorization|lastFour|apiKey/i);
 });
+
+test("renames and deletes a project through the folder action menu", async ({
+  page,
+}) => {
+  await page.goto("/projects");
+  await page.getByRole("button", { name: /新建创作空间/ }).click();
+  await page.getByLabel("空间名称").fill("E2E 可管理项目");
+  await page.getByRole("button", { name: "创建并进入" }).click();
+  await page.getByRole("link", { name: "退出当前空间" }).click();
+
+  await page.getByRole("button", { name: "管理 E2E 可管理项目" }).click();
+  await page.getByRole("button", { name: "重命名" }).click();
+  await page.getByLabel("项目名称").fill("E2E 已重命名项目");
+  await page.getByRole("button", { name: "保存名称" }).click();
+  await expect(page.getByRole("heading", { name: "E2E 已重命名项目" })).toBeVisible();
+
+  await page.getByRole("button", { name: "管理 E2E 已重命名项目" }).click();
+  await page.getByRole("button", { name: "删除项目" }).click();
+  const deleteButton = page.getByRole("button", { name: "永久删除" });
+  await expect(deleteButton).toBeDisabled();
+  await page.getByLabel("输入项目名称以确认").fill("E2E 已重命名项目");
+  await deleteButton.click();
+  await expect(page.getByRole("heading", { name: "E2E 已重命名项目" })).toHaveCount(0);
+});

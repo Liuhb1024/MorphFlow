@@ -188,7 +188,7 @@ async function* chunksFrom(stream: ByteStream): AsyncGenerator<Uint8Array> {
 
 async function ensureManagedDirectory(
   root: string,
-  childName: "media" | "temp",
+  childName: "media" | "temp" | "trash",
 ): Promise<{ canonicalRoot: string; child: string }> {
   if (!isAbsolute(root) || root === "/") {
     throw new Error("Invalid media data root");
@@ -215,6 +215,66 @@ async function ensureManagedDirectory(
     throw new Error("Managed media directory escaped its root");
   }
   return { canonicalRoot, child: canonicalChild };
+}
+
+export type ProjectMediaQuarantine = Readonly<{
+  commit: () => Promise<void>;
+  rollback: () => Promise<void>;
+}>;
+
+const NO_PROJECT_MEDIA: ProjectMediaQuarantine = {
+  commit: async () => undefined,
+  rollback: async () => undefined,
+};
+
+export async function quarantineProjectMedia(
+  dataRoot: string,
+  projectId: string,
+): Promise<ProjectMediaQuarantine> {
+  assertResourceId(projectId, "project");
+  const media = await ensureManagedDirectory(dataRoot, "media");
+  const projectDirectory = resolve(media.child, projectId);
+  if (!isInside(media.child, projectDirectory)) {
+    throw new Error("Project media path escaped its root");
+  }
+
+  let projectInfo;
+  try {
+    projectInfo = await lstat(projectDirectory);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return NO_PROJECT_MEDIA;
+    throw error;
+  }
+  if (!projectInfo.isDirectory() || projectInfo.isSymbolicLink()) {
+    throw new Error("Project media directory must be a real directory");
+  }
+  const canonicalProject = await realpath(projectDirectory);
+  if (!isInside(media.child, canonicalProject)) {
+    throw new Error("Project media directory escaped its root");
+  }
+
+  const trash = await ensureManagedDirectory(dataRoot, "trash");
+  const quarantinePath = resolve(
+    trash.child,
+    `deleted_${projectId}_${randomUUID()}`,
+  );
+  if (!isInside(trash.child, quarantinePath)) {
+    throw new Error("Project quarantine path escaped its root");
+  }
+  await rename(canonicalProject, quarantinePath);
+  let settled = false;
+  return {
+    commit: async () => {
+      if (settled) return;
+      await rm(quarantinePath, { recursive: true, force: true });
+      settled = true;
+    },
+    rollback: async () => {
+      if (settled) return;
+      await rename(quarantinePath, projectDirectory);
+      settled = true;
+    },
+  };
 }
 
 async function ensureProjectDirectory(

@@ -57,4 +57,54 @@ describe("ProjectRepository", () => {
     database.close();
   });
 
+  it("renames a project and advances its revision", () => {
+    const database = openMorphFlowDatabase({ filename: ":memory:" });
+    const ticks = [1_000, 2_000];
+    const repository = new ProjectRepository(database, {
+      createId: () => "project_editable",
+      now: () => ticks.shift() ?? 2_000,
+    });
+    const project = repository.createProject({ name: "旧名称" });
+
+    const updated = repository.updateProject(project.id, { name: "新名称" });
+
+    expect(updated).toMatchObject({
+      id: project.id,
+      name: "新名称",
+      revision: 2,
+      updatedAt: 2_000,
+    });
+    database.close();
+  });
+
+  it("deletes a project and its dependent records", () => {
+    const database = openMorphFlowDatabase({ filename: ":memory:" });
+    const ids = ["project_delete", "shot_delete"];
+    const repository = new ProjectRepository(database, {
+      createId: () => ids.shift() ?? "unexpected",
+      now: () => 1_000,
+    });
+    const project = repository.createProject({ name: "待删除项目" });
+    const shot = repository.createShot({ projectId: project.id, name: "镜头" });
+    repository.insertAsset({
+      id: "asset_delete",
+      projectId: project.id,
+      shotId: shot.id,
+      kind: "source_image",
+      relativePath: "media/project_delete/asset_delete/asset_delete.png",
+      displayName: "source.png",
+      mimeType: "image/png",
+      byteSize: 8,
+      sha256: "a".repeat(64),
+    });
+
+    repository.deleteProject(project.id);
+
+    expect(repository.listProjects()).toEqual([]);
+    expect(() => repository.getProject(project.id)).toThrow("Project not found");
+    expect(() => repository.getShot(shot.id)).toThrow("Shot not found");
+    expect(() => repository.getAsset("asset_delete")).toThrow("Asset not found");
+    database.close();
+  });
+
 });

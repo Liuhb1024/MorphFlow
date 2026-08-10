@@ -226,6 +226,36 @@ export class ProjectRepository {
     ).map(mapProject);
   }
 
+  updateProject(
+    id: string,
+    input: { name?: string; description?: string },
+  ): Project {
+    const current = this.getProject(id);
+    const name = input.name === undefined
+      ? current.name
+      : cleanText(input.name, "name", 120);
+    const description = input.description === undefined
+      ? current.description
+      : cleanText(input.description, "description", 2_000);
+    const updatedAt = this.now();
+    this.database.prepare(
+      `UPDATE projects
+       SET name = ?, description = ?, revision = revision + 1, updated_at = ?
+       WHERE id = ?`,
+    ).run(name, description, updatedAt, id);
+    return this.getProject(id);
+  }
+
+  deleteProject(id: string): Project {
+    const project = this.getProject(id);
+    this.database.transaction(() => {
+      this.database.prepare("DELETE FROM assets WHERE project_id = ?").run(id);
+      const result = this.database.prepare("DELETE FROM projects WHERE id = ?").run(id);
+      if (result.changes !== 1) throw new Error("Project not found");
+    }).immediate();
+    return project;
+  }
+
   createShot(input: {
     projectId: string;
     name: string;
