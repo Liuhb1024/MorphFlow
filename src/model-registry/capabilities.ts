@@ -208,7 +208,7 @@ const gemini: ModelModeDefinition = {
     needsLiveTest("产品目标模型名为 gemini-3.6-flash，但本地示例仅覆盖 2.5。"),
     unknown("结构化输出参数和媒体限制未记录。"),
   ],
-  maturity: "disabled",
+  maturity: "documented",
   registryVersion: 2,
 };
 
@@ -279,7 +279,7 @@ const gptImage: ModelModeDefinition = {
     conflicting("标题、推荐名、示例 payload 与产品 model name 不一致。"),
     needsLiveTest("gpt-image-2-03 的 n=1 和价格需要受控请求确认。"),
   ],
-  maturity: "disabled",
+  maturity: "documented",
   registryVersion: 2,
 };
 
@@ -490,9 +490,6 @@ const viduFields = (audioDefault: boolean, audioStatus: "documented" | "conflict
   choice("resolution", "分辨率", "720p", ["540p", "720p", "1080p"]),
   bool("audio", "生成声音", audioDefault, "common", {
     availability: audioStatus,
-    ...(audioStatus === "conflicting"
-      ? { enabled: false, disabledReason: "单图模式的音频默认值在文档中冲突。" }
-      : {}),
   }),
   integer("seed", "随机种子", 0, undefined, undefined, "advanced"),
   bool("watermark", "添加水印", false),
@@ -538,7 +535,7 @@ const viduCapabilities: readonly ModelModeDefinition[] = [
     constraints: [],
     pricing: viduPricing,
     evidence: [conflicting("单图 audio 默认值自相矛盾；查询 model name 也存在冲突。")],
-    maturity: "disabled",
+    maturity: "documented",
     registryVersion: 2,
   },
   {
@@ -557,7 +554,7 @@ const viduCapabilities: readonly ModelModeDefinition[] = [
     constraints: [],
     pricing: viduPricing,
     evidence: [documented("首尾帧请求参数有本地文档。"), conflicting("查询使用 vidu-get 还是 viduq2-pro-get 尚未解决。")],
-    maturity: "disabled",
+    maturity: "documented",
     registryVersion: 2,
   },
 ];

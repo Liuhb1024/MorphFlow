@@ -5,6 +5,7 @@ export type AssetView = {
   sourceLabel: string;
   src: string;
   alt: string;
+  mediaType: "image" | "video" | "audio";
 };
 
 export type InputSlotView = {
@@ -12,6 +13,8 @@ export type InputSlotView = {
   label: string;
   assetId: string | null;
   required: boolean;
+  accepts: readonly ("image" | "video" | "audio")[];
+  maxItems: number | null;
 };
 
 type FieldBase = {

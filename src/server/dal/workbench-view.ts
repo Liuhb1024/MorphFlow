@@ -27,7 +27,7 @@ export function createWorkbenchView(
     images.find(
       (asset) => asset.kind === "last_frame" && asset.id !== first?.id,
     ) ?? images.find((asset) => asset.id !== first?.id);
-  const assets: AssetView[] = images.map((asset) => ({
+  const assets: AssetView[] = workspace.assets.map((asset) => ({
     id: asset.id,
     label: assetLabel(asset),
     role:
@@ -39,9 +39,10 @@ export function createWorkbenchView(
     sourceLabel: `${asset.source === "local_upload" ? "本地上传" : "派生素材"} · ${Math.max(1, Math.round(asset.byteSize / 1_024))} KB`,
     src: asset.contentUrl,
     alt: asset.displayName,
+    mediaType: asset.mimeType.startsWith("image/") ? "image" : asset.mimeType.startsWith("video/") ? "video" : "audio",
   }));
   const capabilities = toCapabilityViews(
-    listCapabilities().filter((capability) => capability.category === "video"),
+    listCapabilities().filter((capability) => capability.category === "video" && capability.modeId !== "subject-control"),
     {
       ...(first
         ? {

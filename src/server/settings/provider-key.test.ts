@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { MemorySecretStore } from "../secrets/keychain";
 import { createProviderKeyHandlers } from "./provider-key";
+import { createProviderConnectionTestHandler } from "./provider-connection";
 
 function localRequest(method: string, body?: unknown, origin = "http://localhost:3000") {
   return new Request("http://localhost:3000/api/settings/provider-key", {
@@ -53,5 +54,35 @@ describe("provider key handlers", () => {
 
     expect(response.status).toBe(200);
     await expect(store.status("dmxapi")).resolves.toEqual({ configured: false });
+  });
+});
+
+describe("provider connection test", () => {
+  it("performs a minimal request and returns no credential or response text", async () => {
+    const complete = vi.fn().mockResolvedValue({
+      text: "provider output must stay server-side",
+      model: "gemini-3.6-flash",
+      usage: { totalTokens: 5 },
+    });
+    const handler = createProviderConnectionTestHandler({ complete });
+
+    const response = await handler(localRequest("POST"));
+    const serialized = JSON.stringify(await response.json());
+
+    expect(response.status).toBe(200);
+    expect(complete).toHaveBeenCalledOnce();
+    expect(serialized).toContain('"ok":true');
+    expect(serialized).toContain('"totalTokens":5');
+    expect(serialized).not.toContain("provider output");
+  });
+
+  it("rejects external origins before calling the provider", async () => {
+    const complete = vi.fn();
+    const handler = createProviderConnectionTestHandler({ complete });
+
+    const response = await handler(localRequest("POST", undefined, "https://attacker.example"));
+
+    expect(response.status).toBe(403);
+    expect(complete).not.toHaveBeenCalled();
   });
 });

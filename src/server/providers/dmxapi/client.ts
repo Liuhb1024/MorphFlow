@@ -60,6 +60,14 @@ type DmxApiClientOptions = Readonly<{
   maxResponseBytes?: number;
 }>;
 
+export type DmxAuthorizationStyle = "bare" | "bearer";
+
+export type DmxRawRequestOptions = Readonly<{
+  authorization: DmxAuthorizationStyle;
+  timeoutMs?: number;
+  maxResponseBytes?: number;
+}>;
+
 function validateRequest(request: DmxCompletionRequest): void {
   if (!/^[A-Za-z0-9._-]{1,128}$/.test(request.model)) {
     throw new DmxApiError("invalid_request");
@@ -164,31 +172,30 @@ export class DmxApiClient {
       options.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES;
   }
 
-  async complete(request: DmxCompletionRequest): Promise<DmxCompletionResult> {
-    validateRequest(request);
+  private async post(
+    url: string,
+    body: BodyInit,
+    headers: HeadersInit,
+    options: DmxRawRequestOptions,
+  ): Promise<string> {
     let credential: string;
     try {
       credential = await this.secretStore.get("dmxapi");
     } catch {
       throw new DmxApiError("credential_unavailable");
     }
-
-    const signal = AbortSignal.timeout(this.timeoutMs);
+    const signal = AbortSignal.timeout(options.timeoutMs ?? this.timeoutMs);
     let response: Response;
     try {
-      response = await this.fetchImpl(DMX_CHAT_COMPLETIONS_URL, {
+      response = await this.fetchImpl(url, {
         method: "POST",
         headers: {
-          Authorization: credential,
-          "Content-Type": "application/json",
+          ...headers,
+          Authorization: options.authorization === "bearer"
+            ? `Bearer ${credential}`
+            : credential,
         },
-        body: JSON.stringify({
-          model: request.model,
-          messages: request.messages,
-          temperature: 0,
-          max_tokens: request.maxTokens,
-          stream: false,
-        }),
+        body,
         redirect: "error",
         signal,
       });
@@ -198,11 +205,64 @@ export class DmxApiClient {
     } finally {
       credential = "";
     }
+    const raw = await readBoundedText(
+      response,
+      options.maxResponseBytes ?? this.maxResponseBytes,
+    );
+    if (!response.ok) throw new DmxApiError("provider_http_error", response.status);
+    return raw;
+  }
 
-    const raw = await readBoundedText(response, this.maxResponseBytes);
-    if (!response.ok) {
-      throw new DmxApiError("provider_http_error", response.status);
+  async postJson(
+    path: "/v1/responses" | "/v1/chat/completions",
+    payload: Readonly<Record<string, unknown>>,
+    options: DmxRawRequestOptions,
+  ): Promise<unknown> {
+    const raw = await this.post(
+      `https://www.dmxapi.cn${path}`,
+      JSON.stringify(payload),
+      { "Content-Type": "application/json" },
+      options,
+    );
+    try {
+      return JSON.parse(raw);
+    } catch {
+      throw new DmxApiError("invalid_provider_response");
     }
+  }
+
+  async postForm(
+    path: "/v1/images/edits",
+    form: FormData,
+    options: DmxRawRequestOptions,
+  ): Promise<unknown> {
+    const raw = await this.post(
+      `https://www.dmxapi.cn${path}`,
+      form,
+      {},
+      options,
+    );
+    try {
+      return JSON.parse(raw);
+    } catch {
+      throw new DmxApiError("invalid_provider_response");
+    }
+  }
+
+  async complete(request: DmxCompletionRequest): Promise<DmxCompletionResult> {
+    validateRequest(request);
+    const raw = await this.post(
+      DMX_CHAT_COMPLETIONS_URL,
+      JSON.stringify({
+        model: request.model,
+        messages: request.messages,
+        temperature: 0,
+        max_tokens: request.maxTokens,
+        stream: false,
+      }),
+      { "Content-Type": "application/json" },
+      { authorization: "bare" },
+    );
     return parseResponse(raw);
   }
 }

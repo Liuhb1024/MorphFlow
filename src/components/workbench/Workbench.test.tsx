@@ -12,8 +12,8 @@ function testView(): WorkbenchViewModel {
   return {
     project: { id: "project_test", name: "测试空间", eyebrow: "LOCAL PROJECT" },
     assets: [
-      { id: "asset_a", label: "A.png", role: "first-frame", sourceLabel: "本地上传", src: "/api/assets/asset_a/content", alt: "A.png" },
-      { id: "asset_b", label: "B.png", role: "last-frame", sourceLabel: "本地上传", src: "/api/assets/asset_b/content", alt: "B.png" },
+      { id: "asset_a", label: "A.png", role: "first-frame", sourceLabel: "本地上传", src: "/api/assets/asset_a/content", alt: "A.png", mediaType: "image" },
+      { id: "asset_b", label: "B.png", role: "last-frame", sourceLabel: "本地上传", src: "/api/assets/asset_b/content", alt: "B.png", mediaType: "image" },
     ],
     capabilities: toCapabilityViews(
       listCapabilities().filter((capability) => capability.category === "video"),
@@ -29,7 +29,7 @@ describe("generation workspace", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "生成视频" })).toBeVisible();
     expect(screen.queryByText("本地演示")).not.toBeInTheDocument();
-    expect(screen.getByText(/生成提交尚未接通/)).toBeVisible();
+    expect(screen.getByText(/确认后会调用所选真实视频模型/)).toBeVisible();
     expect(screen.getByText("A", { selector: "[data-frame-label]" })).toBeVisible();
     expect(screen.getByText("B", { selector: "[data-frame-label]" })).toBeVisible();
     expect(screen.getByText("文档支持 · 未实测")).toBeVisible();
@@ -80,8 +80,8 @@ describe("generation workspace", () => {
 
     const dialog = screen.getByRole("dialog", { name: "生成配置复核" });
     expect(within(dialog).getByText(/Paiwo v5\.6 ITV2/i)).toBeVisible();
-    expect(within(dialog).getByRole("button", { name: "生成提交尚未接通" })).toBeDisabled();
-    expect(within(dialog).getByText(/不会调用模型或产生费用/)).toBeVisible();
+    expect(within(dialog).getByRole("button", { name: "确认费用并提交" })).toBeEnabled();
+    expect(within(dialog).getByText(/真实付费请求/)).toBeVisible();
 
     fireEvent.keyDown(dialog, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

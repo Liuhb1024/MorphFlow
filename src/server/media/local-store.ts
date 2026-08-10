@@ -26,6 +26,7 @@ import {
   assertResourceId,
   type Asset,
   type AssetKind,
+  type AssetSource,
 } from "../projects/repository";
 
 const IMAGE_MAX_BYTES = 25 * 1_024 * 1_024;
@@ -63,6 +64,7 @@ export type StoreLocalAssetInput = Readonly<{
   projectId: string;
   shotId?: string;
   kind: AssetKind;
+  source?: AssetSource;
   originalFilename: string;
   declaredMime: string;
   stream: ByteStream;
@@ -399,6 +401,7 @@ export async function storeLocalAsset(
       projectId: input.projectId,
       ...(input.shotId === undefined ? {} : { shotId: input.shotId }),
       kind: input.kind,
+      ...(input.source === undefined ? {} : { source: input.source }),
       relativePath,
       displayName: metadata.displayName,
       mimeType: metadata.mimeType,

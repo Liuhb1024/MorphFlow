@@ -129,14 +129,9 @@ export function StudioShell({
       <div className={styles.workspace}>
         <header className={styles.topbar}>
           <div className={styles.mobileBrand}>MorphFlow</div>
-          <button aria-label="搜索项目与素材" className={styles.searchButton} type="button">
-            <StudioIcon name="search" size={16} />
-            <span>搜索项目、素材或任务</span>
-            <kbd>⌘ K</kbd>
-          </button>
+          <div className={styles.searchButton}><StudioIcon name="grid" size={16}/><span>{projectName}</span></div>
           <div className={styles.topbarActions}>
             <span className={styles.previewBadge}>本地空间</span>
-            <button aria-label="打开帮助" className={styles.roundButton} type="button">?</button>
             <span className={styles.avatar} aria-label="本地用户">H</span>
           </div>
         </header>

@@ -1,10 +1,14 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SecretSettingsCard } from "./SecretSettingsCard";
 import { StudioSectionPage } from "./StudioSectionPage";
 
+const navigation = vi.hoisted(() => ({ refresh: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => navigation }));
+
+beforeEach(() => vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ tasks: [], configured: false }), { status: 200 }))));
 afterEach(() => vi.unstubAllGlobals());
 
 describe("studio pages", () => {
@@ -38,19 +42,19 @@ describe("studio pages", () => {
     expect(document.querySelector('[src*="/fixtures/"]')).not.toBeInTheDocument();
   });
 
-  it("keeps optional AI steps visibly optional", () => {
+  it("exposes the real optional director flow", () => {
     render(<StudioSectionPage assets={[]} projectDescription="" projectId="project_empty" projectName="空白空间" section="director" shots={[]}/>);
 
-    expect(screen.getByText("VLM 导演 · 可选")).toBeVisible();
-    expect(screen.getByRole("button", { name: "生成导演建议" })).toBeDisabled();
-    expect(screen.getByText(/VLM 页面提交尚未接通/)).toBeVisible();
+    expect(screen.getByText("VLM 导演")).toBeVisible();
+    expect(screen.getByRole("button", { name: /生成导演建议/ })).toBeDisabled();
+    expect(screen.getByText(/调用前会再次确认真实费用/)).toBeVisible();
   });
 
-  it("does not invent completed remote jobs", () => {
+  it("does not invent completed remote jobs", async () => {
     render(<StudioSectionPage assets={[]} projectDescription="" projectId="project_empty" projectName="空白空间" section="jobs" shots={[]}/>);
 
-    expect(screen.getByText("还没有生成任务")).toBeVisible();
-    expect(screen.getByText(/没有提交过真实请求/)).toBeVisible();
+    expect(await screen.findByText("还没有生成任务")).toBeVisible();
+    expect(screen.getByText(/提交真实视频请求后/)).toBeVisible();
     expect(screen.queryByText("生成成功")).not.toBeInTheDocument();
   });
 
@@ -75,7 +79,7 @@ describe("studio pages", () => {
       />,
     );
 
-    expect(screen.getByText("真实项目")).toBeVisible();
+    expect(screen.getAllByText("真实项目").length).toBeGreaterThan(0);
     expect(screen.getByText("我的尾帧.png")).toBeVisible();
     expect(screen.getByRole("link", { name: "生成模型与参数" })).toHaveAttribute(
       "href",
@@ -84,7 +88,7 @@ describe("studio pages", () => {
     expect(screen.getByText("SQLite 已连接")).toBeVisible();
   });
 
-  it("keeps provider credentials blank, masked and never enables connection testing", () => {
+  it("keeps provider credentials blank and masked until a key is configured", () => {
     render(<StudioSectionPage assets={[]} projectDescription="" projectId="project_empty" projectName="空白空间" section="settings" shots={[]}/>);
 
     const input = screen.getByLabelText("输入新 Key");
@@ -92,7 +96,7 @@ describe("studio pages", () => {
     expect(input).toHaveValue("");
     expect(screen.getByRole("button", { name: "保存到 Keychain" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "删除 Key" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "测试连接 · 待接入" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "测试连接" })).toBeDisabled();
   });
 
   it("saves through the local credential endpoint and immediately clears the secret", async () => {

@@ -70,6 +70,20 @@ export function SecretSettingsCard() {
     } finally { setLoading(false); }
   }
 
+  async function testConnection() {
+    if (!status.configured) return;
+    setLoading(true); setMessage("正在发送最小连接测试…"); setMessageTone("muted");
+    try {
+      const response = await fetch("/api/settings/provider-key/test", { method: "POST", cache: "no-store", credentials: "same-origin" });
+      const body = await response.json() as { ok?: boolean; model?: string; totalTokens?: number };
+      if (!response.ok || body.ok !== true) throw new Error("connection_failed");
+      setMessage(`连接成功 · ${body.model ?? "DMXAPI"}${body.totalTokens === undefined ? "" : ` · ${body.totalTokens} tokens`}`);
+      setMessageTone("success");
+    } catch {
+      setMessage("连接失败。请确认 Key 有效、余额充足且网络可访问 DMXAPI。"); setMessageTone("error");
+    } finally { setLoading(false); }
+  }
+
   return (
     <div className={styles.secretEditor}>
       <div className={styles.secretSummary}>
@@ -86,7 +100,7 @@ export function SecretSettingsCard() {
       <div className={styles.secretActions}>
         <button disabled={loading || draft.trim().length === 0} onClick={() => void saveKey()} type="button">保存到 Keychain</button>
         <button disabled={loading || !status.configured} onClick={() => void deleteKey()} type="button">删除 Key</button>
-        <button disabled type="button">测试连接 · 待接入</button>
+        <button disabled={loading || !status.configured} onClick={() => void testConnection()} type="button">测试连接</button>
       </div>
     </div>
   );

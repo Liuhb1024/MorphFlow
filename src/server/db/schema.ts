@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS schema_metadata (
 ) STRICT;
 
 INSERT INTO schema_metadata (key, value)
-VALUES ('schema_version', '2')
+VALUES ('schema_version', '3')
 ON CONFLICT(key) DO UPDATE SET value = excluded.value;
 
 CREATE TABLE IF NOT EXISTS projects (
@@ -67,6 +67,30 @@ ON assets(project_id, created_at DESC, id);
 
 CREATE INDEX IF NOT EXISTS assets_shot_created_index
 ON assets(shot_id, created_at, id);
+
+CREATE TABLE IF NOT EXISTS generation_tasks (
+  id TEXT PRIMARY KEY NOT NULL,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  capability_id TEXT NOT NULL CHECK (length(capability_id) BETWEEN 1 AND 160),
+  model_id TEXT NOT NULL CHECK (length(model_id) BETWEEN 1 AND 128),
+  status TEXT NOT NULL CHECK (status IN (
+    'submitting', 'submitted', 'running', 'succeeded', 'failed', 'unknown'
+  )),
+  provider_task_id TEXT,
+  request_json TEXT NOT NULL CHECK (length(request_json) <= 131072),
+  result_asset_id TEXT REFERENCES assets(id) ON DELETE SET NULL,
+  error_code TEXT CHECK (error_code IS NULL OR length(error_code) <= 160),
+  estimated_cost_cny REAL CHECK (estimated_cost_cny IS NULL OR estimated_cost_cny >= 0),
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+) STRICT;
+
+CREATE UNIQUE INDEX IF NOT EXISTS generation_tasks_provider_id_unique
+ON generation_tasks(provider_task_id)
+WHERE provider_task_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS generation_tasks_project_created_index
+ON generation_tasks(project_id, created_at DESC, id);
 
 CREATE TABLE IF NOT EXISTS credential_settings (
   provider TEXT PRIMARY KEY NOT NULL,

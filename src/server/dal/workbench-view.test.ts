@@ -82,7 +82,7 @@ describe("createWorkbenchView", () => {
       "/api/assets/asset_a/content",
       "/api/assets/asset_b/content",
     ]);
-    expect(view.capabilities).toHaveLength(16);
+    expect(view.capabilities).toHaveLength(15);
     expect(view.capabilities.every((capability) => capability.modeId !== "director")).toBe(true);
     expect(
       view.capabilities.find(

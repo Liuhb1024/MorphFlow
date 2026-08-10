@@ -33,19 +33,19 @@ describe("model registry", () => {
     ]);
   });
 
-  it("keeps unresolved model names and protocols disabled rather than guessing", () => {
+  it("exposes implemented documented protocols while keeping unsupported subject control disabled", () => {
     const gemini = getCapability("gemini-3.6-flash:director");
     const gptImage = getCapability("gpt-image-2-03:reference-image-edit");
     const vidu = getCapability("viduq3-pro:first-last-frame");
     const klingSubject = getCapability("kling-v3:subject-control");
 
-    expect(gemini.maturity).toBe("disabled");
+    expect(gemini.maturity).toBe("documented");
     expect(gemini.pricing.kind).toBe("unknown");
-    expect(gptImage.maturity).toBe("disabled");
+    expect(gptImage.maturity).toBe("documented");
     expect(gptImage.evidence.map((item) => item.status)).toContain(
       "conflicting",
     );
-    expect(vidu.maturity).toBe("disabled");
+    expect(vidu.maturity).toBe("documented");
     expect(klingSubject.maturity).toBe("disabled");
   });
 

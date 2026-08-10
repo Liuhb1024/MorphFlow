@@ -183,13 +183,15 @@ export function toCapabilityViews(
     modeLabel: definition.modeLabel,
     verification: definition.maturity,
     definitionVersion: `registry-${definition.registryVersion}`,
-    inputSlots: definition.inputSlots.map((slot) => ({
+    inputSlots: definition.inputSlots.filter((slot) => !slot.accepts.every((kind) => kind === "audio")).map((slot) => ({
       id: slot.id,
       label: slot.label,
       assetId: assetByRole[slot.role] ?? null,
       required: slot.required,
+      accepts: [...slot.accepts],
+      maxItems: slot.maxItems,
     })),
-    fields: definition.fields.map((field) =>
+    fields: definition.fields.filter((field) => field.enabled !== false).map((field) =>
       toFieldView(field, fieldDefaultOverrides[field.id]),
     ),
     constraints: definition.constraints.map((constraint) => ({

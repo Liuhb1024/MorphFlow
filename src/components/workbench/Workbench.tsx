@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import {
   type ChangeEvent,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -62,7 +63,7 @@ function GenerationStage({ capability, assets }: { capability: CapabilityView; a
     <section className={styles.stageCard} aria-labelledby="stage-heading">
       <div className={styles.stageToolbar}>
         <div><span>PREVIEW</span><h2 id="stage-heading">转场预览</h2></div>
-        <div className={styles.previewControls}><button data-active="true" type="button">并排</button><button type="button">擦除</button><span>16:9</span></div>
+        <div className={styles.previewControls}><span>并排预览</span><span>16:9</span></div>
       </div>
       <div className={styles.transitionLine} aria-label={needsLast ? "A 到 B 连续转场" : "从 A 开放生成"}>
         <span>A</span><i/><small>{needsLast ? "连续转场" : "开放终点"}</small><i/><span>{needsLast ? "B" : "∞"}</span>
@@ -76,22 +77,28 @@ function GenerationStage({ capability, assets }: { capability: CapabilityView; a
   );
 }
 
-function AssetStrip({ assets, capability }: { assets: AssetView[]; capability: CapabilityView }) {
+function AssetStrip({ assets, bindings, capability, onBinding, projectId }: { assets: AssetView[]; bindings: Record<string, string[]>; capability: CapabilityView; onBinding: (slotId: string, assetIds: string[]) => void; projectId: string }) {
   return (
     <section className={styles.assetStrip} aria-labelledby="generation-assets">
       <div className={styles.blockTitle}><div><span>INPUTS</span><h2 id="generation-assets">生成素材</h2></div><small>{capability.inputSlots.length} 个必需输入</small></div>
       <div className={styles.assetRow}>
         {capability.inputSlots.map((slot) => {
-          const asset = assets.find((item) => item.id === slot.assetId);
+          const compatible = assets.filter((item) => slot.accepts.includes(item.mediaType));
+          const selected = bindings[slot.id] ?? [];
+          const asset = assets.find((item) => item.id === selected[0]);
           return (
             <div className={styles.boundAsset} key={slot.id}>
               {asset ? <Image alt="" height={76} src={asset.src} width={135}/> : <span className={styles.assetPlaceholder}/>}
               <div><span data-slot-name>{slot.label}</span><strong>{asset?.label ?? "尚未绑定"}</strong><small>{asset?.sourceLabel ?? "请选择本地素材"}</small></div>
-              <em data-ready={asset ? "true" : "false"}>{asset ? "已选择" : "必需"}</em>
+              <select aria-label={slot.label} multiple={slot.maxItems !== 1} onChange={(event) => onBinding(slot.id, Array.from(event.currentTarget.selectedOptions, (option) => option.value).filter(Boolean))} value={slot.maxItems === 1 ? selected[0] ?? "" : selected}>
+                {slot.maxItems === 1 ? <option value="">请选择素材</option> : null}
+                {compatible.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+              </select>
+              <em data-ready={selected.length > 0 ? "true" : "false"}>{selected.length > 0 ? `已选 ${selected.length}` : slot.required ? "必需" : "可选"}</em>
             </div>
           );
         })}
-        <button className={styles.referenceButton} type="button"><StudioIcon name="plus" size={16}/><span><strong>添加参考素材</strong><small>图片 / 视频 / 手绘</small></span></button>
+        <Link className={styles.referenceButton} href={`/projects/${encodeURIComponent(projectId)}/media`}><StudioIcon name="plus" size={16}/><span><strong>上传或管理素材</strong><small>图片 / 视频 / 手绘</small></span></Link>
       </div>
     </section>
   );
@@ -205,8 +212,11 @@ function PriceCard({ pricing }: { pricing: PricingView }) {
   return <div className={styles.priceCard}><span><strong>预计费用</strong><small>{detail}</small></span><strong>{value}</strong></div>;
 }
 
-function ReviewDialog({ open, capability, values, onClose, returnRef }: { open: boolean; capability: CapabilityView; values: ParameterValues; onClose: () => void; returnRef: React.RefObject<HTMLButtonElement | null> }) {
+function ReviewDialog({ open, capability, values, bindings, projectId, onClose, returnRef }: { open: boolean; capability: CapabilityView; values: ParameterValues; bindings: Record<string, string[]>; projectId: string; onClose: () => void; returnRef: React.RefObject<HTMLButtonElement | null> }) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<{ id: string } | null>(null);
+  const [message, setMessage] = useState("");
   useEffect(() => {
     if (!open) return;
     const target = returnRef.current;
@@ -215,12 +225,22 @@ function ReviewDialog({ open, capability, values, onClose, returnRef }: { open: 
   }, [open, returnRef]);
   if (!open) return null;
   function keyDown(event: ReactKeyboardEvent<HTMLDivElement>) { if (event.key === "Escape") { event.preventDefault(); onClose(); } }
+  async function submit() {
+    setSubmitting(true); setMessage("");
+    try {
+      const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/video-jobs`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ capabilityId: capability.id, values, bindings, confirmed: true }) });
+      const body = await response.json() as { task?: { id: string }; error?: string };
+      if (!response.ok || !body.task) throw new Error(body.error ?? "提交失败");
+      setResult(body.task); setMessage("任务已真实提交，Provider task ID 已安全保存。");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "提交失败"); }
+    finally { setSubmitting(false); }
+  }
   return (
-    <div className={styles.dialogLayer}><button aria-label="关闭复核弹层" className={styles.dialogBackdrop} onClick={onClose} type="button"/><div aria-describedby="review-description" aria-labelledby="review-title" aria-modal="true" className={styles.dialog} onKeyDown={keyDown} role="dialog"><div className={styles.dialogHeader}><div><span>提交前检查</span><h2 id="review-title">生成配置复核</h2></div><button aria-label="关闭复核" onClick={onClose} ref={closeRef} type="button">×</button></div><p id="review-description">这是当前空间的真实配置；任务提交链路尚未接通。</p><dl><div><dt>Provider</dt><dd>{providerLabel(providerId(capability))}</dd></div><div><dt>模型</dt><dd>{capability.modelLabel}</dd></div><div><dt>模式</dt><dd>{capability.modeLabel}</dd></div><div><dt>输入</dt><dd>{capability.inputSlots.map((slot) => slot.label).join(" + ")}</dd></div><div><dt>时长</dt><dd>{String(values.duration)} 秒</dd></div><div><dt>分辨率</dt><dd>{String(values.resolution)}</dd></div></dl><div className={styles.dialogNotice}><StudioIcon name="settings" size={17}/><span><strong>安全边界</strong><small>当前不会调用模型或产生费用。</small></span></div><div className={styles.dialogActions}><button onClick={onClose} type="button">返回调整</button><button disabled type="button">生成提交尚未接通</button></div></div></div>
+    <div className={styles.dialogLayer}><button aria-label="关闭复核弹层" className={styles.dialogBackdrop} onClick={onClose} type="button"/><div aria-describedby="review-description" aria-labelledby="review-title" aria-modal="true" className={styles.dialog} onKeyDown={keyDown} role="dialog"><div className={styles.dialogHeader}><div><span>提交前检查</span><h2 id="review-title">生成配置复核</h2></div><button aria-label="关闭复核" onClick={onClose} ref={closeRef} type="button">×</button></div><p id="review-description">确认后会立即调用真实模型并产生对应费用；异步 task ID 会先保存，再进入查询。</p><dl><div><dt>Provider</dt><dd>{providerLabel(providerId(capability))}</dd></div><div><dt>模型</dt><dd>{capability.modelLabel}</dd></div><div><dt>模式</dt><dd>{capability.modeLabel}</dd></div><div><dt>输入</dt><dd>{capability.inputSlots.map((slot) => `${slot.label} ${bindings[slot.id]?.length ?? 0} 项`).join(" + ") || "纯文本"}</dd></div><div><dt>时长</dt><dd>{String(values.duration)} 秒</dd></div><div><dt>分辨率</dt><dd>{String(values.resolution ?? values.modelMode ?? "由模型决定")}</dd></div></dl><div className={styles.dialogNotice}><StudioIcon name="settings" size={17}/><span><strong>真实付费请求</strong><small>{capability.pricing.kind === "exact" ? `预计 ¥${capability.pricing.amountCny.toFixed(2)}` : capability.pricing.kind === "range" ? `预计 ¥${capability.pricing.minCny.toFixed(2)}–¥${capability.pricing.maxCny.toFixed(2)}` : "当前文档无法精确估价"}</small></span></div>{message ? <p aria-live="polite">{message}</p> : null}<div className={styles.dialogActions}>{result ? <Link href={`/projects/${encodeURIComponent(projectId)}/jobs`}>查看任务</Link> : <><button onClick={onClose} type="button">返回调整</button><button disabled={submitting} onClick={() => void submit()} type="button">{submitting ? "正在提交…" : "确认费用并提交"}</button></>}</div></div></div>
   );
 }
 
-function GenerationInspector({ capabilities, capability, values, issues, onCapability, onValue, onReview, reviewRef }: { capabilities: CapabilityView[]; capability: CapabilityView; values: ParameterValues; issues: ValidationIssue[]; onCapability: (next: CapabilityView) => void; onValue: (id: string, value: ParameterValue) => void; onReview: () => void; reviewRef: React.RefObject<HTMLButtonElement | null> }) {
+function GenerationInspector({ capabilities, capability, values, issues, inputsValid, onCapability, onValue, onReview, reviewRef }: { capabilities: CapabilityView[]; capability: CapabilityView; values: ParameterValues; issues: ValidationIssue[]; inputsValid: boolean; onCapability: (next: CapabilityView) => void; onValue: (id: string, value: ParameterValue) => void; onReview: () => void; reviewRef: React.RefObject<HTMLButtonElement | null> }) {
   const errors = issues.filter((issue) => issue.severity === "error");
   const unavailable = capability.verification === "disabled";
   return (
@@ -230,8 +250,8 @@ function GenerationInspector({ capabilities, capability, values, issues, onCapab
       <div className={styles.reviewBar}>
         <div className={styles.validationState} data-valid={errors.length === 0 && !unavailable ? "true" : "false"}><span>{errors.length === 0 && !unavailable ? "✓" : "!"}</span><div><strong>{unavailable ? "当前 capability 不可用" : errors.length === 0 ? "参数检查通过" : `${errors.length} 项需要调整`}</strong><small>{unavailable ? "请切换到文档支持或已实测的模型模式" : errors[0]?.message ?? "可以进入配置复核"}</small></div></div>
         <PriceCard pricing={capability.pricing}/>
-        <button disabled={errors.length > 0 || unavailable} onClick={onReview} ref={reviewRef} type="button">检查并生成 <span>→</span></button>
-        <p>真实项目配置 · 提交链路尚未接通</p>
+        <button disabled={errors.length > 0 || unavailable || !inputsValid} onClick={onReview} ref={reviewRef} type="button">检查并生成 <span>→</span></button>
+        <p>{inputsValid ? "真实项目配置 · 将提交真实付费请求" : "请先为所有必需输入选择素材"}</p>
       </div>
     </aside>
   );
@@ -242,23 +262,29 @@ export function WorkbenchShell({ view }: { view: WorkbenchViewModel }) {
   if (!initial) throw new Error("WorkbenchShell requires at least one capability view.");
   const [capability, setCapability] = useState(initial);
   const [values, setValues] = useState<ParameterValues>(() => defaultsFor(initial));
+  const initialBindings = (item: CapabilityView) => Object.fromEntries(item.inputSlots.map((slot) => [slot.id, slot.assetId ? [slot.assetId] : []]));
+  const [bindings, setBindings] = useState<Record<string, string[]>>(() => initialBindings(initial));
   const [reviewOpen, setReviewOpen] = useState(false);
   const reviewRef = useRef<HTMLButtonElement>(null);
   const issues = useMemo(() => validateDraft(capability, values), [capability, values]);
 
-  function changeCapability(next: CapabilityView) { setCapability(next); setValues(defaultsFor(next)); }
+  function changeCapability(next: CapabilityView) { setCapability(next); setValues(defaultsFor(next)); setBindings(initialBindings(next)); }
+  const inputsValid = capability.inputSlots.every((slot) => {
+    const count = bindings[slot.id]?.length ?? 0;
+    return (!slot.required || count > 0) && (slot.maxItems === null || count <= slot.maxItems);
+  }) && (capability.modeId !== "multimodal-reference" || Object.values(bindings).some((ids) => ids.length > 0));
 
   return (
     <StudioShell active="generate" description="选择当前空间的真实输入、模型和完整参数。" flush projectId={view.project.id} projectName={view.project.name} title="生成视频">
       <div className={styles.generationLayout}>
         <div className={styles.generationCanvas}>
-          <div className={styles.statusBanner}><span>真实空间</span><p>素材来自本地 SQLite；生成提交尚未接通，不会产生费用。</p></div>
+          <div className={styles.statusBanner}><span>真实空间</span><p>素材来自本地 SQLite；确认后会调用所选真实视频模型。</p></div>
           <GenerationStage assets={view.assets} capability={capability}/>
-          <AssetStrip assets={view.assets} capability={capability}/>
+          <AssetStrip assets={view.assets} bindings={bindings} capability={capability} onBinding={(slotId, assetIds) => setBindings((current) => ({ ...current, [slotId]: assetIds }))} projectId={view.project.id}/>
         </div>
-        <GenerationInspector capabilities={view.capabilities} capability={capability} issues={issues} onCapability={changeCapability} onReview={() => setReviewOpen(true)} onValue={(id,value) => setValues((current) => ({...current,[id]:value}))} reviewRef={reviewRef} values={values}/>
+        <GenerationInspector capabilities={view.capabilities} capability={capability} inputsValid={inputsValid} issues={issues} onCapability={changeCapability} onReview={() => setReviewOpen(true)} onValue={(id,value) => setValues((current) => ({...current,[id]:value}))} reviewRef={reviewRef} values={values}/>
       </div>
-      <ReviewDialog capability={capability} onClose={() => setReviewOpen(false)} open={reviewOpen} returnRef={reviewRef} values={values}/>
+      <ReviewDialog bindings={bindings} capability={capability} onClose={() => setReviewOpen(false)} open={reviewOpen} projectId={view.project.id} returnRef={reviewRef} values={values}/>
     </StudioShell>
   );
 }
