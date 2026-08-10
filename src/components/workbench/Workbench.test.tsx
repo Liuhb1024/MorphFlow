@@ -1,12 +1,14 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { listCapabilities } from "@/model-registry/registry";
 
 import { WorkbenchShell } from "./Workbench";
 import { toCapabilityViews } from "./registry-view";
 import type { WorkbenchViewModel } from "./types";
+
+afterEach(() => vi.unstubAllGlobals());
 
 function testView(): WorkbenchViewModel {
   return {
@@ -86,5 +88,21 @@ describe("generation workspace", () => {
     fireEvent.keyDown(dialog, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(reviewButton).toHaveFocus();
+  });
+
+  it("shows persistent progress after a real video generation submission starts", async () => {
+    const pending = new Promise<Response>(() => undefined);
+    vi.stubGlobal("fetch", vi.fn().mockReturnValue(pending));
+    const user = userEvent.setup();
+    render(<WorkbenchShell view={testView()} />);
+
+    await user.type(screen.getByLabelText("镜头提示词"), "保持主体连续并平稳转场");
+    await user.click(screen.getByRole("button", { name: /检查并生成/ }));
+    await user.click(screen.getByRole("button", { name: "确认费用并提交" }));
+
+    expect(screen.getByRole("progressbar", { name: "AI 任务提交进度" })).toBeVisible();
+    expect(screen.getByText("正在向视频模型提交任务…")).toBeVisible();
+    expect(screen.getByRole("button", { name: "关闭复核" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "返回调整" })).toBeDisabled();
   });
 });

@@ -53,6 +53,38 @@ describe("studio pages", () => {
     expect(screen.getByText(/调用前会再次确认真实费用/)).toBeVisible();
   });
 
+  it("uses an in-product dialog and visible progress for image AI actions", async () => {
+    let finishRequest: ((response: Response) => void) | undefined;
+    const pending = new Promise<Response>((resolve) => { finishRequest = resolve; });
+    const fetchMock = vi.fn().mockReturnValue(pending);
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<StudioSectionPage assets={[{ id: "asset-reference", contentUrl: "/api/assets/asset-reference/content", displayName: "reference.png", kind: "reference_image", mimeType: "image/png", byteSize: 2_048 }]} projectDescription="" projectId="project_real" projectName="真实项目" section="image" shots={[]}/>);
+
+    await user.type(screen.getByLabelText("画面描述"), "保留人物，增加蓝色能量光");
+    await user.click(screen.getByRole("button", { name: /AI 深度优化提示词/ }));
+    expect(screen.getByRole("dialog", { name: "优化图片提示词" })).toBeVisible();
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "确认并开始优化" }));
+    expect(screen.getByRole("progressbar", { name: "AI 处理进度" })).toBeVisible();
+    expect(screen.getByText("正在分析参考图并重写提示词…")).toBeVisible();
+    finishRequest?.(new Response(JSON.stringify({ prompt: "保留人物身份与构图，增加蓝色能量光。" }), { status: 200 }));
+    expect(await screen.findByText("提示词优化完成")).toBeVisible();
+  });
+
+  it("opens a custom confirmation component before the director request", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<StudioSectionPage assets={[]} projectDescription="" projectId="project_real" projectName="真实项目" section="director" shots={[]}/>);
+
+    await user.type(screen.getByLabelText("你的创作意图"), "镜头缓慢推进并保持人物连续");
+    await user.click(screen.getByRole("button", { name: /生成导演建议/ }));
+    expect(screen.getByRole("dialog", { name: "生成视频导演提示词" })).toBeVisible();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("does not invent completed remote jobs", async () => {
     render(<StudioSectionPage assets={[]} projectDescription="" projectId="project_empty" projectName="空白空间" section="jobs" shots={[]}/>);
 
