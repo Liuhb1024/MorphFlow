@@ -67,7 +67,7 @@ function FramePreview({ asset, label }: { asset: StudioAssetView | undefined; la
   if (!asset) {
     return <div className={styles.realEmptyFrame}><span>{label}</span><strong>尚未选择素材</strong><small>前往素材库上传</small></div>;
   }
-  return <div><Image alt={asset.displayName} fill priority sizes="(max-width: 800px) 85vw, 38vw" src={asset.contentUrl}/><span>{label} · {asset.displayName}</span></div>;
+  return <div><Image alt={asset.displayName} fill priority sizes="(max-width: 800px) 85vw, 38vw" src={asset.contentUrl} unoptimized/><span>{label} · {asset.displayName}</span></div>;
 }
 
 function Overview(context: StudioPageContext) {
@@ -120,7 +120,7 @@ function Media({ assets, projectId }: StudioPageContext) {
     <section className={styles.mediaToolbar}><div className={styles.filterTabs}><span>全部 {assets.length}</span><span>视频 {videos.length}</span><span>图片 {images.length}</span></div></section>
     <FrameExtractorCard projectId={projectId} videos={videos}/>
     <section className={styles.mediaGrid} aria-label="本地素材">
-      {assets.map((asset, index) => <article className={styles.mediaCard} key={asset.id}><div className={styles.mediaPreview}>{isImage(asset) ? <Image alt={asset.displayName} fill priority={index < 2} sizes="(max-width: 900px) 100vw, 40vw" src={asset.contentUrl}/> : <video controls preload="metadata" src={asset.contentUrl}/>}<span>{String(index + 1).padStart(2, "0")}</span><em>{isImage(asset) ? "本地图片" : "本地视频"}</em></div><div className={styles.mediaInfo}><div><h2>{asset.displayName}</h2><p>{Math.max(1, Math.round(asset.byteSize / 1024))} KB · {asset.kind}</p></div><small>LOCAL FILE</small></div></article>)}
+      {assets.map((asset, index) => <article className={styles.mediaCard} key={asset.id}><div className={styles.mediaPreview}>{isImage(asset) ? <Image alt={asset.displayName} fill priority={index < 2} sizes="(max-width: 900px) 100vw, 40vw" src={asset.contentUrl} unoptimized/> : <video controls preload="metadata" src={asset.contentUrl}/>}<span>{String(index + 1).padStart(2, "0")}</span><em>{isImage(asset) ? "本地图片" : "本地视频"}</em></div><div className={styles.mediaInfo}><div><h2>{asset.displayName}</h2><p>{Math.max(1, Math.round(asset.byteSize / 1024))} KB · {asset.kind}</p></div><small>LOCAL FILE</small></div></article>)}
       <MediaUploadCard projectId={projectId}/>
     </section>
     {assets.length === 0 ? <section className={styles.inlineEmpty}><strong>这个空间还是空的</strong><p>从本机上传视频、尾帧、目标图或手绘图。这里不会显示示例素材。</p></section> : null}

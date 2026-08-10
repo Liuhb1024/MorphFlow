@@ -465,7 +465,11 @@ export function resolveAssetFile(dataRoot: string, asset: Asset): string {
   return canonicalFile;
 }
 
-export function createAssetReadStream(dataRoot: string, asset: Asset) {
+export function createAssetReadStream(
+  dataRoot: string,
+  asset: Asset,
+  range: { start: number; end: number } | undefined = undefined,
+) {
   const filename = resolveAssetFile(dataRoot, asset);
   const descriptor = openSync(
     filename,
@@ -476,5 +480,9 @@ export function createAssetReadStream(dataRoot: string, asset: Asset) {
     closeSync(descriptor);
     throw new Error("Stored asset size does not match its database record");
   }
-  return createReadStream(filename, { fd: descriptor, autoClose: true });
+  return createReadStream(filename, {
+    fd: descriptor,
+    autoClose: true,
+    ...(range ? { start: range.start, end: range.end } : {}),
+  });
 }

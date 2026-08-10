@@ -34,5 +34,5 @@ export function FrameExtractorCard({ projectId, videos }: { projectId: string; v
     finally { if (objectUrl) URL.revokeObjectURL(objectUrl); setBusy(false); }
   }
   if (videos.length === 0) return null;
-  return <section className={styles.mediaToolbar}><label><span>从已上传视频提取高清尾帧</span><select disabled={busy} onChange={(event) => setVideoId(event.target.value)} value={videoId}>{videos.map((video) => <option key={video.id} value={video.id}>{video.displayName}</option>)}</select></label><button disabled={busy || !videoId} onClick={() => void extract()} type="button">{busy ? "正在提取…" : "提取并保存为首帧 A"}</button>{message ? <small aria-live="polite">{message}</small> : null}</section>;
+  return <section className={styles.extractorCard}><div><span>FRAME EXTRACTOR</span><strong>从视频提取高清尾帧</strong><small>截取最后一个可解码画面，并保存为首帧 A。</small></div><label><span>来源视频</span><select disabled={busy} onChange={(event) => setVideoId(event.target.value)} value={videoId}>{videos.map((video) => <option key={video.id} value={video.id}>{video.displayName}</option>)}</select></label><button disabled={busy || !videoId} onClick={() => void extract()} type="button">{busy ? "正在提取…" : "提取尾帧"}</button>{message ? <small aria-live="polite">{message}</small> : null}</section>;
 }

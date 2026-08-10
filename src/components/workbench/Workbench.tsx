@@ -48,7 +48,7 @@ function uniqueBy<T>(items: T[], key: (item: T) => string) {
 function StageFrame({ asset, label }: { asset: AssetView; label: "A" | "B" }) {
   return (
     <figure className={styles.stageFrame}>
-      <Image alt={asset.alt} fill priority sizes="(max-width: 1000px) 50vw, 35vw" src={asset.src}/>
+      <Image alt={asset.alt} fill priority sizes="(max-width: 1000px) 50vw, 35vw" src={asset.src} unoptimized/>
       <figcaption><span data-frame-label>{label}</span><div><strong>{asset.label}</strong><small>{asset.sourceLabel}</small></div></figcaption>
     </figure>
   );
@@ -88,7 +88,7 @@ function AssetStrip({ assets, bindings, capability, onBinding, projectId }: { as
           const asset = assets.find((item) => item.id === selected[0]);
           return (
             <div className={styles.boundAsset} key={slot.id}>
-              {asset ? <Image alt="" height={76} src={asset.src} width={135}/> : <span className={styles.assetPlaceholder}/>}
+              {asset ? <Image alt="" height={76} src={asset.src} unoptimized width={135} /> : <span className={styles.assetPlaceholder} />}
               <div><span data-slot-name>{slot.label}</span><strong>{asset?.label ?? "尚未绑定"}</strong><small>{asset?.sourceLabel ?? "请选择本地素材"}</small></div>
               <select aria-label={slot.label} multiple={slot.maxItems !== 1} onChange={(event) => onBinding(slot.id, Array.from(event.currentTarget.selectedOptions, (option) => option.value).filter(Boolean))} value={slot.maxItems === 1 ? selected[0] ?? "" : selected}>
                 {slot.maxItems === 1 ? <option value="">请选择素材</option> : null}

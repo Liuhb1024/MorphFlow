@@ -83,6 +83,12 @@ describe("assets API", () => {
       }),
       { params: Promise.resolve({ assetId: uploadJson.asset.id }) },
     );
+    const partial = await getAssetContent(
+      new Request(`http://localhost:3000${uploadJson.asset.contentUrl}`, {
+        headers: { host: "localhost:3000", range: "bytes=0-7" },
+      }),
+      { params: Promise.resolve({ assetId: uploadJson.asset.id }) },
+    );
 
     expect(uploaded.status).toBe(201);
     expect(listed.status).toBe(200);
@@ -90,6 +96,10 @@ describe("assets API", () => {
     expect(listedText).not.toContain(dataRoot);
     expect(content.headers.get("content-type")).toBe("image/png");
     expect(new Uint8Array(await content.arrayBuffer())).toEqual(PNG_FIXTURE);
+    expect(partial.status).toBe(206);
+    expect(partial.headers.get("accept-ranges")).toBe("bytes");
+    expect(partial.headers.get("content-range")).toBe(`bytes 0-7/${PNG_FIXTURE.byteLength}`);
+    expect(new Uint8Array(await partial.arrayBuffer())).toEqual(PNG_FIXTURE.slice(0, 8));
   });
 
   it("rejects external origins and forged PNG signatures without creating assets", async () => {
