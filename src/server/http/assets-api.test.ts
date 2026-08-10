@@ -1,12 +1,13 @@
 // @vitest-environment node
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
 import { GET as getAssetContent } from "../../app/api/assets/[assetId]/content/route";
+import { DELETE as deleteAsset } from "../../app/api/assets/[assetId]/route";
 import {
   GET as listAssets,
   POST as uploadAsset,
@@ -100,6 +101,32 @@ describe("assets API", () => {
     expect(partial.headers.get("accept-ranges")).toBe("bytes");
     expect(partial.headers.get("content-range")).toBe(`bytes 0-7/${PNG_FIXTURE.byteLength}`);
     expect(new Uint8Array(await partial.arrayBuffer())).toEqual(PNG_FIXTURE.slice(0, 8));
+
+    const rejectedDelete = await deleteAsset(
+      new Request(`http://localhost:3000/api/assets/${uploadJson.asset.id}`, {
+        method: "DELETE",
+        headers: { host: "localhost:3000", origin: "https://attacker.example" },
+      }),
+      { params: Promise.resolve({ assetId: uploadJson.asset.id }) },
+    );
+    const deleted = await deleteAsset(
+      new Request(`http://localhost:3000/api/assets/${uploadJson.asset.id}`, {
+        method: "DELETE",
+        headers: { host: "localhost:3000", origin: "http://localhost:3000" },
+      }),
+      { params: Promise.resolve({ assetId: uploadJson.asset.id }) },
+    );
+    const afterDelete = await getAssetContent(
+      new Request(`http://localhost:3000${uploadJson.asset.contentUrl}`, {
+        headers: { host: "localhost:3000" },
+      }),
+      { params: Promise.resolve({ assetId: uploadJson.asset.id }) },
+    );
+    expect(rejectedDelete.status).toBe(403);
+    expect(deleted.status).toBe(200);
+    expect(await deleted.json()).toEqual({ deleted: true, cleanupPending: false });
+    expect(afterDelete.status).toBe(404);
+    expect(existsSync(join(dataRoot, "media", project.id, uploadJson.asset.id))).toBe(false);
   });
 
   it("rejects external origins and forged PNG signatures without creating assets", async () => {

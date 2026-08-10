@@ -16,7 +16,7 @@ import {
   lstat,
   realpath,
 } from "node:fs/promises";
-import { extname, isAbsolute, posix, relative, resolve } from "node:path";
+import { dirname, extname, isAbsolute, posix, relative, resolve } from "node:path";
 
 import type Database from "better-sqlite3";
 
@@ -229,6 +229,8 @@ const NO_PROJECT_MEDIA: ProjectMediaQuarantine = {
   rollback: async () => undefined,
 };
 
+export type AssetMediaQuarantine = ProjectMediaQuarantine;
+
 export async function quarantineProjectMedia(
   dataRoot: string,
   projectId: string,
@@ -274,6 +276,44 @@ export async function quarantineProjectMedia(
     rollback: async () => {
       if (settled) return;
       await rename(quarantinePath, projectDirectory);
+      settled = true;
+    },
+  };
+}
+
+export async function quarantineAssetMedia(
+  dataRoot: string,
+  asset: Asset,
+): Promise<AssetMediaQuarantine> {
+  const assetFile = resolveAssetFile(dataRoot, asset);
+  const assetDirectory = dirname(assetFile);
+  const media = await ensureManagedDirectory(dataRoot, "media");
+  const expectedProject = resolve(media.child, asset.projectId);
+  const expectedAsset = resolve(expectedProject, asset.id);
+  if (assetDirectory !== expectedAsset || !isInside(expectedProject, assetDirectory)) {
+    throw new Error("Asset media directory escaped its project");
+  }
+  const directoryInfo = await lstat(assetDirectory);
+  if (!directoryInfo.isDirectory() || directoryInfo.isSymbolicLink()) {
+    throw new Error("Asset media directory must be a real directory");
+  }
+
+  const trash = await ensureManagedDirectory(dataRoot, "trash");
+  const quarantinePath = resolve(trash.child, `deleted_${asset.id}_${randomUUID()}`);
+  if (!isInside(trash.child, quarantinePath)) {
+    throw new Error("Asset quarantine path escaped its root");
+  }
+  await rename(assetDirectory, quarantinePath);
+  let settled = false;
+  return {
+    commit: async () => {
+      if (settled) return;
+      await rm(quarantinePath, { recursive: true, force: true });
+      settled = true;
+    },
+    rollback: async () => {
+      if (settled) return;
+      await rename(quarantinePath, assetDirectory);
       settled = true;
     },
   };

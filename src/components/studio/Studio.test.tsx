@@ -8,7 +8,10 @@ import { StudioSectionPage } from "./StudioSectionPage";
 const navigation = vi.hoisted(() => ({ refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => navigation }));
 
-beforeEach(() => vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ tasks: [], configured: false }), { status: 200 }))));
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ tasks: [], configured: false }), { status: 200 })));
+});
 afterEach(() => vi.unstubAllGlobals());
 
 describe("studio pages", () => {
@@ -86,6 +89,27 @@ describe("studio pages", () => {
       "/projects/project_real/generate",
     );
     expect(screen.getByText("SQLite 已连接")).toBeVisible();
+    expect(screen.getByRole("button", { name: "删除 我的尾帧.png" })).toBeVisible();
+  });
+
+  it("requires confirmation before deleting a local asset", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ deleted: true, cleanupPending: false }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<StudioSectionPage assets={[{ id: "asset-real", contentUrl: "/api/assets/asset-real/content", displayName: "我的尾帧.png", kind: "first_frame", mimeType: "image/png", byteSize: 2_048 }]} projectDescription="" projectId="project_real" projectName="真实项目" section="media" shots={[]}/>);
+
+    await user.click(screen.getByRole("button", { name: "删除 我的尾帧.png" }));
+    expect(screen.getByRole("dialog", { name: "删除素材" })).toBeVisible();
+    expect(fetchMock).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "确认删除" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/assets/asset-real",
+      expect.objectContaining({ method: "DELETE" }),
+    ));
+    expect(navigation.refresh).toHaveBeenCalled();
   });
 
   it("keeps provider credentials blank and masked until a key is configured", () => {

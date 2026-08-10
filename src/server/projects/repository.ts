@@ -364,4 +364,11 @@ export class ProjectRepository {
         .all(projectId) as AssetRow[]
     ).map(mapAsset);
   }
+
+  deleteAsset(id: string): Asset {
+    const asset = this.getAsset(id);
+    const result = this.database.prepare("DELETE FROM assets WHERE id = ?").run(id);
+    if (result.changes !== 1) throw new Error("Asset not found");
+    return asset;
+  }
 }

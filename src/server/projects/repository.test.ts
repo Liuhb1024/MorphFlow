@@ -107,4 +107,31 @@ describe("ProjectRepository", () => {
     database.close();
   });
 
+  it("deletes a single asset without removing its project", () => {
+    const database = openMorphFlowDatabase({ filename: ":memory:" });
+    const repository = new ProjectRepository(database, {
+      createId: () => "project_keep",
+      now: () => 1_000,
+    });
+    const project = repository.createProject({ name: "保留项目" });
+    repository.insertAsset({
+      id: "asset_remove",
+      projectId: project.id,
+      kind: "source_image",
+      relativePath: "media/project_keep/asset_remove/asset_remove.png",
+      displayName: "remove.png",
+      mimeType: "image/png",
+      byteSize: 8,
+      sha256: "a".repeat(64),
+    });
+
+    const deleted = repository.deleteAsset("asset_remove");
+
+    expect(deleted.id).toBe("asset_remove");
+    expect(repository.getProject(project.id)).toEqual(project);
+    expect(repository.listAssets(project.id)).toEqual([]);
+    expect(() => repository.getAsset("asset_remove")).toThrow("Asset not found");
+    database.close();
+  });
+
 });
