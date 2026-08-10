@@ -43,6 +43,16 @@ function safeWebStream(nodeStream: ReadStream): ReadableStream<Uint8Array> {
   });
 }
 
+function contentDisposition(filename: string, attachment: boolean): string {
+  const ascii = filename
+    .replace(/[^\x20-\x7e]/g, "_")
+    .replace(/["\\]/g, "_")
+    .slice(0, 180) || "download";
+  const encoded = encodeURIComponent(filename)
+    .replace(/[!'()*]/g, (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
+  return `${attachment ? "attachment" : "inline"}; filename="${ascii}"; filename*=UTF-8''${encoded}`;
+}
+
 export async function GET(request: Request, context: RouteContext) {
   const local = validateLocalApiRequest(request, { mutation: false });
   if (!local.ok) return localBoundaryError(local);
@@ -65,7 +75,10 @@ export async function GET(request: Request, context: RouteContext) {
         "Content-Length": String(selected.end - selected.start + 1),
         ...(range ? { "Content-Range": `bytes ${selected.start}-${selected.end}/${asset.byteSize}` } : {}),
         "Content-Type": asset.mimeType,
-        "Content-Disposition": `inline; filename="${asset.id}"`,
+        "Content-Disposition": contentDisposition(
+          asset.displayName,
+          new URL(request.url).searchParams.get("download") === "1",
+        ),
         "X-Content-Type-Options": "nosniff",
       },
     });

@@ -90,12 +90,20 @@ describe("assets API", () => {
       }),
       { params: Promise.resolve({ assetId: uploadJson.asset.id }) },
     );
+    const download = await getAssetContent(
+      new Request(`http://localhost:3000${uploadJson.asset.contentUrl}?download=1`, {
+        headers: { host: "localhost:3000" },
+      }),
+      { params: Promise.resolve({ assetId: uploadJson.asset.id }) },
+    );
 
     expect(uploaded.status).toBe(201);
     expect(listed.status).toBe(200);
     expect(listedText).not.toContain("relativePath");
     expect(listedText).not.toContain(dataRoot);
     expect(content.headers.get("content-type")).toBe("image/png");
+    expect(content.headers.get("content-disposition")).toContain('inline; filename="frame.png"');
+    expect(download.headers.get("content-disposition")).toContain('attachment; filename="frame.png"');
     expect(new Uint8Array(await content.arrayBuffer())).toEqual(PNG_FIXTURE);
     expect(partial.status).toBe(206);
     expect(partial.headers.get("accept-ranges")).toBe("bytes");

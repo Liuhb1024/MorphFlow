@@ -53,6 +53,27 @@ describe("studio pages", () => {
     expect(screen.getByText(/调用前会再次确认真实费用/)).toBeVisible();
   });
 
+  it("offers completed generated videos as an explicit MP4 download", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      tasks: [{
+        id: "video_task_done",
+        capabilityId: "kling-v3:first-last-frame",
+        modelId: "kling-v3",
+        status: "succeeded",
+        providerTaskId: "provider-task",
+        resultUrl: "/api/assets/asset_video/content",
+        errorCode: null,
+        estimatedCostCny: 1.42,
+      }],
+    }), { status: 200 })));
+
+    render(<StudioSectionPage assets={[]} projectDescription="" projectId="project_real" projectName="真实项目" section="jobs" shots={[]}/>);
+
+    const download = await screen.findByRole("link", { name: "下载 MP4" });
+    expect(download).toHaveAttribute("href", "/api/assets/asset_video/content?download=1");
+    expect(download).toHaveAttribute("download", "");
+  });
+
   it("uses an in-product dialog and visible progress for image AI actions", async () => {
     let finishRequest: ((response: Response) => void) | undefined;
     const pending = new Promise<Response>((resolve) => { finishRequest = resolve; });
