@@ -126,11 +126,10 @@ function ImageStudio(context: StudioPageContext) {
 }
 
 function Director(context: StudioPageContext) {
-  const { first, target } = selectFrames(context.assets);
-  const frames = [first, target].filter((asset): asset is StudioAssetView => Boolean(asset));
+  const images = context.assets.filter(isImage);
   return <div className={styles.contentStack}>
-    <PageNotice>导演台不预填虚构提示词。只有你主动输入或真实 VLM 返回的内容才会出现。</PageNotice>
-    <DirectorPanel frames={frames} projectId={context.projectId}/>
+    <PageNotice>从当前素材库选择首帧 A 和尾帧 B；导演台不会注入虚构画面或提示词。</PageNotice>
+    <DirectorPanel images={images} projectId={context.projectId}/>
   </div>;
 }
 

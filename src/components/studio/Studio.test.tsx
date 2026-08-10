@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -83,6 +83,33 @@ describe("studio pages", () => {
     await user.click(screen.getByRole("button", { name: /生成导演建议/ }));
     expect(screen.getByRole("dialog", { name: "生成视频导演提示词" })).toBeVisible();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("lets the director choose ordered first and last frames from the real media library", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ advice: "从 A 连续推进至 B。" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    const assets = [
+      { id: "asset-a", contentUrl: "/api/assets/asset-a/content", displayName: "起点.png", kind: "first_frame", mimeType: "image/png", byteSize: 2_048 },
+      { id: "asset-b", contentUrl: "/api/assets/asset-b/content", displayName: "旧终点.png", kind: "last_frame", mimeType: "image/png", byteSize: 2_048 },
+      { id: "asset-new-b", contentUrl: "/api/assets/asset-new-b/content", displayName: "新终点.png", kind: "reference_image", mimeType: "image/png", byteSize: 2_048 },
+    ];
+    render(<StudioSectionPage assets={assets} projectDescription="" projectId="project_real" projectName="真实项目" section="director" shots={[]}/>);
+
+    expect(screen.getByLabelText("首帧 A")).toHaveValue("asset-a");
+    expect(screen.getByLabelText("尾帧 B")).toHaveValue("asset-b");
+    await user.selectOptions(screen.getByLabelText("尾帧 B"), "asset-new-b");
+    expect(screen.getByAltText("新终点.png")).toBeVisible();
+    await user.type(screen.getByLabelText("你的创作意图"), "人物连续走向目标画面");
+    await user.click(screen.getByRole("button", { name: /生成导演建议/ }));
+    const dialog = screen.getByRole("dialog", { name: "生成视频导演提示词" });
+    expect(within(dialog).getByText("起点.png → 新终点.png")).toBeVisible();
+    await user.click(within(dialog).getByRole("button", { name: "确认并开始生成" }));
+
+    await screen.findByText("视频导演提示词已生成");
+    const request = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as { assetIds: string[]; capabilityId: string };
+    expect(request.assetIds).toEqual(["asset-a", "asset-new-b"]);
+    expect(request.capabilityId).toContain("first-last-frame");
   });
 
   it("does not invent completed remote jobs", async () => {
