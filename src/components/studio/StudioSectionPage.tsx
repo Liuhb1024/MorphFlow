@@ -3,12 +3,10 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import styles from "../../styles/studio.module.css";
-import { MediaUploadCard } from "./MediaUploadCard";
-import { MediaAssetCard } from "./MediaAssetCard";
+import { MediaLibrary } from "./MediaLibrary";
 import { ImageGenerationPanel } from "./ImageGenerationPanel";
 import { DirectorPanel } from "./DirectorPanel";
 import { JobsPanel } from "./JobsPanel";
-import { FrameExtractorCard } from "./FrameExtractorCard";
 import { SecretSettingsCard } from "./SecretSettingsCard";
 import { StudioShell, type StudioSection } from "./StudioShell";
 
@@ -54,8 +52,6 @@ function PageNotice({ children }: { children: ReactNode }) {
 function isImage(asset: StudioAssetView): boolean {
   return asset.mimeType.startsWith("image/");
 }
-
-function isVideo(asset: StudioAssetView): boolean { return asset.mimeType.startsWith("video/"); }
 
 function selectFrames(assets: readonly StudioAssetView[]) {
   const images = assets.filter(isImage);
@@ -114,16 +110,9 @@ function Overview(context: StudioPageContext) {
 }
 
 function Media({ assets, projectId }: StudioPageContext) {
-  const images = assets.filter(isImage);
-  const videos = assets.filter(isVideo);
   return <div className={styles.contentStack}>
     <PageNotice>当前显示 {assets.length} 项真实本地素材。上传后写入当前空间，不会出现在其他项目中。</PageNotice>
-    <section className={styles.mediaToolbar}><div className={styles.filterTabs}><span>全部 {assets.length}</span><span>视频 {videos.length}</span><span>图片 {images.length}</span></div></section>
-    <FrameExtractorCard projectId={projectId} videos={videos}/>
-    <section className={styles.mediaGrid} aria-label="本地素材">
-      {assets.map((asset, index) => <MediaAssetCard asset={asset} index={index} key={asset.id}/>)}
-      <MediaUploadCard projectId={projectId}/>
-    </section>
+    <MediaLibrary assets={assets} projectId={projectId}/>
     {assets.length === 0 ? <section className={styles.inlineEmpty}><strong>这个空间还是空的</strong><p>从本机上传视频、尾帧、目标图或手绘图。这里不会显示示例素材。</p></section> : null}
   </div>;
 }

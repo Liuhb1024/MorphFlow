@@ -112,6 +112,33 @@ describe("studio pages", () => {
     expect(navigation.refresh).toHaveBeenCalled();
   });
 
+  it("filters the real media library with accessible segmented controls", async () => {
+    const user = userEvent.setup();
+    render(<StudioSectionPage assets={[{ id: "asset-image", contentUrl: "/api/assets/asset-image/content", displayName: "frame.png", kind: "first_frame", mimeType: "image/png", byteSize: 2_048 }]} projectDescription="" projectId="project_real" projectName="真实项目" section="media" shots={[]}/>);
+
+    expect(screen.getByRole("button", { name: "全部 1" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByRole("button", { name: "视频 0" }));
+    expect(screen.queryByText("frame.png")).not.toBeInTheDocument();
+    expect(screen.getByText("当前筛选下没有素材")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "图片 1" }));
+    expect(screen.getByText("frame.png")).toBeVisible();
+  });
+
+  it("lets the user choose a precise frame time or the video tail", async () => {
+    const user = userEvent.setup();
+    render(<StudioSectionPage assets={[{ id: "asset-video", contentUrl: "/api/assets/asset-video/content", displayName: "clip.mp4", kind: "source_video", mimeType: "video/mp4", byteSize: 4_096 }]} projectDescription="" projectId="project_real" projectName="真实项目" section="media" shots={[]}/>);
+
+    const seconds = screen.getByRole("spinbutton", { name: "截取时间（秒）" });
+    expect(screen.getByRole("button", { name: "尾帧" })).toHaveAttribute("aria-pressed", "true");
+    expect(seconds).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "指定时间" }));
+    expect(seconds).toBeEnabled();
+    await user.clear(seconds);
+    await user.type(seconds, "2.5");
+    expect(seconds).toHaveValue(2.5);
+    expect(screen.getByRole("button", { name: "截取 2.50 秒画面" })).toBeVisible();
+  });
+
   it("keeps provider credentials blank and masked until a key is configured", () => {
     render(<StudioSectionPage assets={[]} projectDescription="" projectId="project_empty" projectName="空白空间" section="settings" shots={[]}/>);
 
