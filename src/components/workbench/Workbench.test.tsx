@@ -27,7 +27,7 @@ function testView(): WorkbenchViewModel {
 
 describe("generation workspace", () => {
   it("renders the light studio shell with honest local state and registry providers", () => {
-    render(<WorkbenchShell view={testView()} />);
+    const { container } = render(<WorkbenchShell view={testView()} />);
 
     expect(screen.getByRole("heading", { level: 1, name: "生成视频" })).toBeVisible();
     expect(screen.queryByText("本地演示")).not.toBeInTheDocument();
@@ -37,6 +37,10 @@ describe("generation workspace", () => {
     expect(screen.getByText("文档支持 · 未实测")).toBeVisible();
     expect(screen.getByAltText("A.png")).toHaveAttribute("loading", "eager");
     expect(screen.getByAltText("B.png")).toHaveAttribute("loading", "eager");
+    expect(Array.from(container.querySelectorAll('img[src*="/api/assets/"]'))).not.toHaveLength(0);
+    for (const image of container.querySelectorAll('img[src*="/api/assets/"]')) {
+      expect(image).toHaveAttribute("loading", "eager");
+    }
 
     const providers = within(screen.getByLabelText("Provider")).getAllByRole("option");
     expect(providers.length).toBeGreaterThan(2);
@@ -121,6 +125,18 @@ describe("generation workspace", () => {
     expect(screen.getByRole("button", { name: /检查并生成/ })).toBeDisabled();
   });
 
+  it("requires a prompt before submitting Kling first/last frame generation", async () => {
+    const user = userEvent.setup();
+    render(<WorkbenchShell view={testView()} />);
+
+    await user.selectOptions(screen.getByLabelText("Provider"), "kling");
+    await user.selectOptions(screen.getByLabelText("Capability 模式"), "first-last-frame");
+
+    expect(screen.getByLabelText("镜头提示词")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getAllByText("视频提示词不能为空。").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /检查并生成/ })).toBeDisabled();
+  });
+
   it("shows the server field message instead of a generic submission code", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
       error: "invalid_video_generation_request",
@@ -135,5 +151,20 @@ describe("generation workspace", () => {
 
     expect(await screen.findByText("提示词相关性必须是数字。")).toBeVisible();
     expect(screen.queryByText("invalid_video_generation_request")).not.toBeInTheDocument();
+  });
+
+  it("shows a sanitized provider rejection reason", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      error: "provider_http_error",
+      providerMessage: "input is required",
+    }), { status: 400, headers: { "Content-Type": "application/json" } })));
+    const user = userEvent.setup();
+    render(<WorkbenchShell view={testView()} />);
+
+    await user.type(screen.getByLabelText("镜头提示词"), "保持主体连续并平稳转场");
+    await user.click(screen.getByRole("button", { name: /检查并生成/ }));
+    await user.click(screen.getByRole("button", { name: "确认费用并提交" }));
+
+    expect(await screen.findByText("Provider 拒绝请求：input is required")).toBeVisible();
   });
 });

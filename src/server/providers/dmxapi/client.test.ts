@@ -52,9 +52,12 @@ describe("DmxApiClient", () => {
 
   it("does not expose a provider error body or credential", async () => {
     const secret = "test-provider-secret";
+    const leakedToken = ["sk", "leaked-example-token"].join("-");
     const fetchImpl = vi
       .fn<typeof fetch>()
-      .mockResolvedValue(new Response(`bad request ${secret}`, { status: 401 }));
+      .mockResolvedValue(new Response(JSON.stringify({
+        error: { code: "invalid_input", message: `input is required; ${secret}; ${leakedToken}` },
+      }), { status: 400 }));
     const client = new DmxApiClient({
       secretStore: await configuredStore(secret),
       fetchImpl,
@@ -68,9 +71,11 @@ describe("DmxApiClient", () => {
 
     await expect(failure).rejects.toMatchObject({
       code: "provider_http_error",
-      status: 401,
+      status: 400,
+      detail: "invalid_input: input is required; [REDACTED]; [REDACTED]",
     });
     await expect(failure).rejects.not.toThrow(secret);
+    await expect(failure).rejects.not.toThrow(leakedToken);
   });
 
   it("rejects an oversized response instead of buffering it without a limit", async () => {

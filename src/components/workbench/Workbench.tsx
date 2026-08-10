@@ -88,7 +88,7 @@ function AssetStrip({ assets, bindings, capability, onBinding, projectId }: { as
           const asset = assets.find((item) => item.id === selected[0]);
           return (
             <div className={styles.boundAsset} key={slot.id}>
-              {asset ? <Image alt="" height={76} src={asset.src} unoptimized width={135} /> : <span className={styles.assetPlaceholder} />}
+              {asset ? <Image alt="" height={76} loading="eager" src={asset.src} unoptimized width={135} /> : <span className={styles.assetPlaceholder} />}
               <div><span data-slot-name>{slot.label}</span><strong>{asset?.label ?? "尚未绑定"}</strong><small>{asset?.sourceLabel ?? "请选择本地素材"}</small></div>
               <select aria-label={slot.label} multiple={slot.maxItems !== 1} onChange={(event) => onBinding(slot.id, Array.from(event.currentTarget.selectedOptions, (option) => option.value).filter(Boolean))} value={slot.maxItems === 1 ? selected[0] ?? "" : selected}>
                 {slot.maxItems === 1 ? <option value="">请选择素材</option> : null}
@@ -229,13 +229,16 @@ function ReviewDialog({ open, capability, values, bindings, projectId, onClose, 
     setSubmitting(true); setMessage("");
     try {
       const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/video-jobs`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ capabilityId: capability.id, values, bindings, confirmed: true }) });
-      const body = await response.json() as { task?: { id: string }; error?: string; issues?: Array<{ field: string; message: string }> };
+      const body = await response.json() as { task?: { id: string }; error?: string; providerMessage?: string; issues?: Array<{ field: string; message: string }> };
       if (!response.ok || !body.task) {
         const details = body.issues?.map((issue) => issue.message).join("；");
+        const providerMessage = body.providerMessage
+          ? `Provider 拒绝请求：${body.providerMessage}`
+          : undefined;
         const fallback = body.error === "invalid_video_generation_request"
           ? "参数或素材不符合当前模型要求，请返回检查标红字段。"
           : body.error;
-        throw new Error(details || fallback || "提交失败");
+        throw new Error(details || providerMessage || fallback || "提交失败");
       }
       setResult(body.task); setMessage("任务已真实提交，Provider task ID 已安全保存。");
     } catch (error) { setMessage(error instanceof Error ? error.message : "提交失败"); }

@@ -50,7 +50,12 @@ export async function POST(request: Request, context: Context) {
         { status: 400 },
       );
     }
-    if (error instanceof DmxApiError) return apiError(error.code, error.status ?? 502);
+    if (error instanceof DmxApiError) {
+      return noStoreJson(
+        { error: error.code, ...(error.detail ? { providerMessage: error.detail } : {}) },
+        { status: error.status ?? 502 },
+      );
+    }
     if (error instanceof Error && (error.message.startsWith("invalid_") || error.message.startsWith("unsupported_") || error.message.startsWith("Unknown capability"))) return apiError(error.message, 400);
     return apiError("video_submission_failed", 502);
   } finally { handle?.close(); }

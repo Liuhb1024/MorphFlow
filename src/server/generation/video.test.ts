@@ -9,6 +9,8 @@ import { createCapabilityDefaults } from "@/model-registry/registry";
 import { openMorphFlowDatabase } from "../db/connection";
 import { storeLocalAsset } from "../media/local-store";
 import { ProjectRepository } from "../projects/repository";
+import { DmxApiError } from "../providers/dmxapi/client";
+import { VideoTaskRepository } from "./video-tasks";
 import { pollVideoTask, submitVideoTask } from "./video";
 
 const dirs: string[] = [];
@@ -42,9 +44,33 @@ describe("video generation", () => {
       bindings: { firstFrame: [data.a.id], lastFrame: [data.b.id] },
     })).rejects.toMatchObject({
       message: "invalid_video_generation_request",
-      issues: [expect.objectContaining({ field: "cfgScale", message: "提示词相关性必须是数字。" })],
+      issues: expect.arrayContaining([
+        expect.objectContaining({ field: "cfgScale", message: "提示词相关性必须是数字。" }),
+      ]),
     });
     expect(postJson).not.toHaveBeenCalled();
+    data.database.close();
+  });
+
+  it("records a definitive provider 400 rejection as failed instead of unknown", async () => {
+    const data = await setup();
+    const capabilityId = "kling-v3:first-last-frame";
+    const postJson = vi.fn().mockRejectedValue(new DmxApiError("provider_http_error", 400, "input is required"));
+
+    await expect(submitVideoTask({
+      database: data.database,
+      dataRoot: data.root,
+      client: { postJson },
+      projectId: data.project.id,
+      capabilityId,
+      values: { ...createCapabilityDefaults(capabilityId), prompt: "连续转场" },
+      bindings: { firstFrame: [data.a.id], lastFrame: [data.b.id] },
+    })).rejects.toMatchObject({ code: "provider_http_error", status: 400 });
+
+    expect(new VideoTaskRepository(data.database).list(data.project.id)[0]).toMatchObject({
+      status: "failed",
+      errorCode: "provider_http_error",
+    });
     data.database.close();
   });
 

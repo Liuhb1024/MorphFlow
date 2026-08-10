@@ -42,12 +42,14 @@ export type DmxApiErrorCode =
 export class DmxApiError extends Error {
   readonly code: DmxApiErrorCode;
   readonly status: number | undefined;
+  readonly detail: string | undefined;
 
-  constructor(code: DmxApiErrorCode, status?: number) {
+  constructor(code: DmxApiErrorCode, status?: number, detail?: string) {
     super(code);
     this.name = "DmxApiError";
     this.code = code;
     this.status = status;
+    this.detail = detail;
   }
 }
 
@@ -124,6 +126,39 @@ function optionalFiniteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
+function sanitizeProviderText(value: string, credential: string): string | undefined {
+  const redacted = value
+    .replaceAll(credential, "[REDACTED]")
+    .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, "[REDACTED]")
+    .replace(/\bBearer\s+[A-Za-z0-9._-]{8,}\b/gi, "Bearer [REDACTED]")
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 240);
+  return redacted.length > 0 ? redacted : undefined;
+}
+
+function providerErrorDetail(raw: string, credential: string): string | undefined {
+  try {
+    const body = JSON.parse(raw) as Record<string, unknown>;
+    const error = typeof body.error === "object" && body.error !== null
+      ? body.error as Record<string, unknown>
+      : undefined;
+    const message = typeof error?.message === "string"
+      ? error.message
+      : typeof body.message === "string"
+        ? body.message
+        : typeof body.error === "string"
+          ? body.error
+          : undefined;
+    if (!message) return undefined;
+    const code = typeof error?.code === "string" ? error.code : undefined;
+    return sanitizeProviderText(code ? `${code}: ${message}` : message, credential);
+  } catch {
+    return undefined;
+  }
+}
+
 function parseResponse(raw: string): DmxCompletionResult {
   try {
     const body = JSON.parse(raw) as Record<string, unknown>;
@@ -185,32 +220,40 @@ export class DmxApiClient {
       throw new DmxApiError("credential_unavailable");
     }
     const signal = AbortSignal.timeout(options.timeoutMs ?? this.timeoutMs);
-    let response: Response;
     try {
-      response = await this.fetchImpl(url, {
-        method: "POST",
-        headers: {
-          ...headers,
-          Authorization: options.authorization === "bearer"
-            ? `Bearer ${credential}`
-            : credential,
-        },
-        body,
-        redirect: "error",
-        signal,
-      });
-    } catch {
-      if (signal.aborted) throw new DmxApiError("request_timeout");
-      throw new DmxApiError("network_error");
+      let response: Response;
+      try {
+        response = await this.fetchImpl(url, {
+          method: "POST",
+          headers: {
+            ...headers,
+            Authorization: options.authorization === "bearer"
+              ? `Bearer ${credential}`
+              : credential,
+          },
+          body,
+          redirect: "error",
+          signal,
+        });
+      } catch {
+        if (signal.aborted) throw new DmxApiError("request_timeout");
+        throw new DmxApiError("network_error");
+      }
+      const raw = await readBoundedText(
+        response,
+        options.maxResponseBytes ?? this.maxResponseBytes,
+      );
+      if (!response.ok) {
+        throw new DmxApiError(
+          "provider_http_error",
+          response.status,
+          providerErrorDetail(raw, credential),
+        );
+      }
+      return raw;
     } finally {
       credential = "";
     }
-    const raw = await readBoundedText(
-      response,
-      options.maxResponseBytes ?? this.maxResponseBytes,
-    );
-    if (!response.ok) throw new DmxApiError("provider_http_error", response.status);
-    return raw;
   }
 
   async postJson(

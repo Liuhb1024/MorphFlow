@@ -197,6 +197,21 @@ describe("model registry", () => {
     );
   });
 
+  it.each([
+    "kling-v3:image-to-video",
+    "kling-v3:first-last-frame",
+  ])("requires a prompt for documented Kling image mode %s", (capabilityId) => {
+    const result = validateCapabilityDraft(capabilityId, {
+      ...createCapabilityDefaults(capabilityId),
+      prompt: "",
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({ field: "prompt", code: "required" }),
+    );
+  });
+
   it("describes Paiwo ITV and ITV2 as different input modes", () => {
     const itv = getCapability("paiwo-v5.6-itv:image-to-video");
     const itv2 = getCapability("paiwo-v5.6-itv2:first-last-frame");

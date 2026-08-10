@@ -13,7 +13,7 @@ import type { ParameterValue } from "@/model-registry/types";
 
 import { resolveAssetFile, storeLocalAsset } from "../media/local-store";
 import { ProjectRepository, type Asset } from "../projects/repository";
-import type { DmxApiClient } from "../providers/dmxapi/client";
+import { DmxApiError, type DmxApiClient } from "../providers/dmxapi/client";
 import { VideoTaskRepository, type VideoTask, type VideoTaskStatus } from "./video-tasks";
 
 type Bindings = Readonly<Record<string, readonly string[]>>;
@@ -208,7 +208,8 @@ export async function submitVideoTask(input: { database: Database.Database; data
     const response = await input.client.postJson("/v1/responses", payload, { authorization: "bare", timeoutMs: 180_000, maxResponseBytes: 4 * 1_024 * 1_024 });
     return tasks.update(task.id, { status: "submitted", providerTaskId: taskId(response), errorCode: null });
   } catch (error) {
-    tasks.update(task.id, { status: "unknown", errorCode: error instanceof Error ? error.message.slice(0, 160) : "submission_failed" });
+    const definitivelyRejected = error instanceof DmxApiError && error.status !== undefined && error.status >= 400 && error.status < 500;
+    tasks.update(task.id, { status: definitivelyRejected ? "failed" : "unknown", errorCode: error instanceof Error ? error.message.slice(0, 160) : "submission_failed" });
     throw error;
   }
 }
