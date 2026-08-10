@@ -124,6 +124,30 @@ describe("studio pages", () => {
     expect(screen.getByText("frame.png")).toBeVisible();
   });
 
+  it("uploads multiple selected images as a sequential local batch", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ asset: { id: "asset-uploaded" } }), { status: 201 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<StudioSectionPage assets={[]} projectDescription="" projectId="project_real" projectName="真实项目" section="media" shots={[]}/>);
+
+    const first = new File(["first"], "first.png", { type: "image/png" });
+    const second = new File(["second"], "second.webp", { type: "image/webp" });
+    const input = screen.getByLabelText("批量选择本地视频或图片");
+    await user.upload(input, [first, second]);
+
+    await screen.findByText("2 个文件已保存到本地素材库。");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(input).toHaveAttribute("multiple");
+    for (const call of fetchMock.mock.calls) {
+      expect(call[0]).toBe("/api/projects/project_real/assets");
+      expect(call[1]).toMatchObject({ method: "POST", credentials: "same-origin" });
+      expect((call[1]?.body as FormData).get("kind")).toBe("source_image");
+    }
+    expect(navigation.refresh).toHaveBeenCalledTimes(1);
+  });
+
   it("lets the user choose a precise frame time or the video tail", async () => {
     const user = userEvent.setup();
     render(<StudioSectionPage assets={[{ id: "asset-video", contentUrl: "/api/assets/asset-video/content", displayName: "clip.mp4", kind: "source_video", mimeType: "video/mp4", byteSize: 4_096 }]} projectDescription="" projectId="project_real" projectName="真实项目" section="media" shots={[]}/>);
